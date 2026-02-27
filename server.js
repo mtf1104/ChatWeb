@@ -16,7 +16,7 @@ const db = mysql.createConnection({
     host: 'gateway01.us-east-1.prod.aws.tidbcloud.com',
     port: 4000,
     user: 'MPefCA2vQ18cTr4.root', // Usuario de tu captura nueva
-    password: 'P6IKI4BtZ5q5OSGg', // Genera uno nuevo en TiDB Cloud
+    password: 'P6IKI4BtZ5q5OSGg',
     database: 'chatweb',
     ssl: {
         minVersion: 'TLSv1.2',
