@@ -1,0 +1,11 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (Contraseñas)
+.env
+
+# Certificados de seguridad
+*.pem
+
+# Archivos del sistema
+.DS_Store
