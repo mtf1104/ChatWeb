@@ -7,76 +7,133 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
+
+// Configuración de Middlewares
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname)); // Sirve index.html desde la raíz
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname)); // Sirve index.html y style.css desde la raíz
 
-// Conexión a TiDB Cloud usando tus credenciales actualizadas
+// 1. Conexión Segura a TiDB Cloud
+// Los datos de HOST y USER son los de tu captura de pantalla
 const db = mysql.createConnection({
     host: 'gateway01.us-east-1.prod.aws.tidbcloud.com',
     port: 4000,
-    user: 'MPefCA2vQ18cTr4.root', // Usuario de tu captura nueva
-    password: 'P6IKI4BtZ5q5OSGg',
+    user: 'MPefCA2vQ18cTr4.root', 
+    password: 'P6IKI4BtZ5q5OSGg', // Tu contraseña generada en TiDB
     database: 'chatweb',
     ssl: {
         minVersion: 'TLSv1.2',
         rejectUnauthorized: true
+        // Si descargaste el certificado .pem, usa: ca: fs.readFileSync('./isrgrootx1.pem')
     }
 });
 
 db.connect(err => {
-    if (err) throw err;
-    console.log("Conectado a TiDB Cloud con éxito");
+    if (err) {
+        console.error("Error conectando a TiDB:", err.message);
+        return;
+    }
+    console.log("Conectado a TiDB Cloud con éxito [ChatWeb]");
 });
 
-// Configuración de correo (Gmail)
+// 2. Configuración de Nodemailer (Envío de contraseñas)
+// Reemplaza con tu correo y "Contraseña de Aplicación" de Google
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'tu_correo@gmail.com',
-        pass: 'tu_clave_de_aplicacion' 
+        user: 'chatweb545@gmail.com',
+        pass: 'fcxghxhubjnsukjn' 
     }
 });
 
-// Ruta para cargar el HTML
+// 3. Rutas de la Aplicación
+
+// Cargar la página principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// REGISTRO: Genera clave, guarda hash y envía correo
+// REGISTRO ACTUALIZADO: Manejo de duplicados y confirmación
 app.post('/registro', async (req, res) => {
     const { nombre, ap_paterno, ap_materno, telefono, correo } = req.body;
-    const tempPassword = Math.random().toString(36).slice(-8); // Contraseña aleatoria
-    const hash = await bcrypt.hash(tempPassword, 10);
-
-    const query = `INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)`;
     
-    db.query(query, [nombre, ap_paterno, ap_materno, telefono, correo, hash], (err) => {
-        if (err) return res.status(500).send("Error: " + err.message);
+    try {
+        const tempPassword = Math.random().toString(36).slice(-8);
+        const hash = await bcrypt.hash(tempPassword, 10);
 
-        const mailOptions = {
-            from: 'tu_correo@gmail.com',
-            to: correo,
-            subject: 'Tu Clave de ChatWeb',
-            text: `Hola ${nombre}, tu contraseña es: ${tempPassword}`
-        };
+        const sql = `INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) 
+                     VALUES (?, ?, ?, ?, ?, ?)`;
+        
+        db.query(sql, [nombre, ap_paterno, ap_materno, telefono, correo, hash], (err) => {
+            if (err) {
+                // Si el error es por correo duplicado (Código 1062 en MySQL/TiDB)
+                if (err.errno === 1062) {
+                    return res.status(400).send("Este correo ya está registrado. Por favor, revisa tu bandeja de entrada para ver tus datos de acceso.");
+                }
+                return res.status(500).send("Error en el registro: " + err.message);
+            }
 
-        transporter.sendMail(mailOptions, (error) => {
-            if (error) return res.status(500).send("Error al enviar correo");
-            res.send("Usuario registrado. Revisa tu correo.");
+            // Si es un registro nuevo, enviamos el correo
+            const mailOptions = {
+                from: 'ChatWeb <tu_correo@gmail.com>',
+                to: correo,
+                subject: 'Bienvenido a ChatWeb - Tus Datos de Acceso',
+                html: `
+                    <h2>¡Hola ${nombre}!</h2>
+                    <p>Te has registrado exitosamente en <b>ChatWeb</b>.</p>
+                    <p>Tus datos de acceso son:</p>
+                    <ul>
+                        <li><b>Correo:</b> ${correo}</li>
+                        <li><b>Contraseña Temporal:</b> ${tempPassword}</li>
+                    </ul>
+                    <p>Inicia sesión ahora en http://localhost:3000</p>
+                `
+            };
+
+            transporter.sendMail(mailOptions, (error) => {
+                if (error) return res.status(500).send("Usuario creado, pero hubo un error al enviar el correo.");
+                res.send("¡Registro exitoso! Te hemos enviado un correo con tus datos de acceso.");
+            });
         });
-    });
+    } catch (error) {
+        res.status(500).send("Error interno del servidor.");
+    }
 });
 
-// LOGIN: Verifica correo y contraseña
+// LOGIN: Verifica correo y compara hash de contraseña
 app.post('/login', (req, res) => {
     const { correo, password } = req.body;
+
     db.query('SELECT * FROM usuarios WHERE correo = ?', [correo], async (err, results) => {
-        if (err || results.length === 0) return res.status(401).send("No encontrado");
-        const match = await bcrypt.compare(password, results[0].password_hash);
-        if (match) res.json({ status: "ok", user: results[0] });
-        else res.status(401).send("Clave incorrecta");
+        if (err) return res.status(500).send("Error en la base de datos");
+        
+        if (results.length === 0) {
+            return res.status(401).send("El correo no está registrado.");
+        }
+
+        const user = results[0];
+        const match = await bcrypt.compare(password, user.password_hash);
+
+        if (match) {
+            // Login exitoso: enviamos los datos básicos (sin el hash)
+            res.json({ 
+                status: "success", 
+                message: "Bienvenido",
+                user: {
+                    id: user.id_usuario,
+                    nombre: user.nombre,
+                    correo: user.correo
+                }
+            });
+        } else {
+            res.status(401).send("Contraseña incorrecta.");
+        }
     });
 });
 
-app.listen(3000, () => console.log("Servidor corriendo en http://localhost:3000"));
+// Iniciar el servidor en el puerto 3000
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor ChatWeb activo en: http://localhost:${PORT}`);
+});
