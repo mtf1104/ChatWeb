@@ -57,7 +57,7 @@
                 body: JSON.stringify(data)
             });
             alert(await res.text());
-            toggleForm(); // Regresa al login tras registrarse
+            toggleForm(); 
         }
 
         async function login() {
@@ -70,7 +70,6 @@
             });
             if(res.ok) {
                 alert("Sesión iniciada");
-                // Aquí podrías redirigir: window.location.href = '/chat.html';
             } else {
                 alert("Error en las credenciales");
             }

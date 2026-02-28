@@ -24,7 +24,6 @@ const db = mysql.createConnection({
     ssl: {
         minVersion: 'TLSv1.2',
         rejectUnauthorized: true
-        // Si descargaste el certificado .pem, usa: ca: fs.readFileSync('./isrgrootx1.pem')
     }
 });
 
@@ -44,8 +43,6 @@ const transporter = nodemailer.createTransport({
         pass: 'fcxghxhubjnsukjn' 
     }
 });
-
-// 3. Rutas de la Aplicación
 
 // Cargar la página principal
 app.get('/', (req, res) => {
@@ -113,7 +110,7 @@ app.post('/login', (req, res) => {
         const match = await bcrypt.compare(password, user.password_hash);
 
         if (match) {
-            // Login exitoso: enviamos los datos básicos (sin el hash)
+            // Login exitoso: enviamos los datos básicos
             res.json({ 
                 status: "success", 
                 message: "Bienvenido",
