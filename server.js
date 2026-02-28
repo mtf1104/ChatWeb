@@ -15,12 +15,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname)); // Sirve index.html y style.css desde la raíz
 
 // 1. Conexión Segura a TiDB Cloud
-// Los datos de HOST y USER son los de tu captura de pantalla
 const db = mysql.createConnection({
     host: 'gateway01.us-east-1.prod.aws.tidbcloud.com',
     port: 4000,
     user: 'MPefCA2vQ18cTr4.root', 
-    password: 'P6IKI4BtZ5q5OSGg', // Tu contraseña generada en TiDB
+    password: 'P6IKI4BtZ5q5OSGg', // contraseña generada en TiDB
     database: 'chatweb',
     ssl: {
         minVersion: 'TLSv1.2',
@@ -38,7 +37,6 @@ db.connect(err => {
 });
 
 // 2. Configuración de Nodemailer (Envío de contraseñas)
-// Reemplaza con tu correo y "Contraseña de Aplicación" de Google
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -74,7 +72,6 @@ app.post('/registro', async (req, res) => {
                 return res.status(500).send("Error en el registro: " + err.message);
             }
 
-            // Si es un registro nuevo, enviamos el correo
             const mailOptions = {
                 from: 'ChatWeb <tu_correo@gmail.com>',
                 to: correo,
