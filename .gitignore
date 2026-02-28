@@ -1,10 +1,9 @@
-node_modules/
+# Dependencias de PHP
+/vendor/
 
-# Variables de entorno (Contraseñas)
-.env
-
-# Certificados de seguridad
-*.pem
-
-# Archivos del sistema
+# Archivos de configuración del sistema
 .DS_Store
+Thumbs.db
+
+# Logs y temporales
+*.log
