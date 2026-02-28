@@ -29,7 +29,6 @@
     </div>
 
     <script>
-        // Función para cambiar entre Login y Registro
         function toggleForm() {
             const loginSec = document.getElementById('login-section');
             const registerSec = document.getElementById('register-section');
@@ -51,27 +50,46 @@
                 telefono: document.getElementById('reg_tel').value,
                 correo: document.getElementById('reg_cor').value
             };
-            const res = await fetch('/registro', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            alert(await res.text());
-            toggleForm(); 
+
+            try {
+                // Se cambió la ruta a 'index.php?action=registro'
+                const res = await fetch('index.php?action=registro', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const responseText = await res.text();
+                alert(responseText);
+                if (res.ok) toggleForm(); 
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Hubo un error en la conexión con el servidor.");
+            }
         }
 
         async function login() {
             const correo = document.getElementById('log_cor').value;
             const password = document.getElementById('log_pass').value;
-            const res = await fetch('/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({correo, password})
-            });
-            if(res.ok) {
-                alert("Sesión iniciada");
-            } else {
-                alert("Error en las credenciales");
+
+            try {
+                // Se cambió la ruta a 'index.php?action=login'
+                const res = await fetch('index.php?action=login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({correo, password})
+                });
+
+                if(res.ok) {
+                    const result = await res.json();
+                    alert("¡Bienvenido, " + result.user.nombre + "!");
+                    // Aquí podrías redirigir al usuario: window.location.href = 'dashboard.php';
+                } else {
+                    const errorText = await res.text();
+                    alert("Error: " + errorText);
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Error al intentar iniciar sesión.");
             }
         }
     </script>
