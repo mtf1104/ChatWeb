@@ -1,4 +1,9 @@
 <?php
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+session_start();
 // Iniciamos la sesión al principio para manejar el acceso al chat
 session_start();
 
