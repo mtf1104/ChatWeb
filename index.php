@@ -1,10 +1,17 @@
 <?php
+// Iniciamos la sesión al principio para manejar el acceso al chat
+session_start();
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+// Carga de librerías y funciones de seguridad
 require 'vendor/autoload.php';
+if (file_exists('cifrado.php')) {
+    include 'cifrado.php';
+}
 
-// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
+// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB - TU ORIGINAL INTACTO) ---
 $host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
 $port = 4000;
 $user = 'MPefCA2vQ18cTr4.root';
@@ -26,7 +33,7 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 if ($request_method === 'POST') {
 
-    // --- RUTA: REGISTRO ---
+    // --- RUTA: REGISTRO (Mantiene tu lógica de PHPMailer) ---
     if ($action === 'registro') {
         $nombre = $data['nombre'];
         $correo = $data['correo'];
@@ -42,9 +49,7 @@ if ($request_method === 'POST') {
         $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
 
         try {
-            // Intentamos ejecutar la inserción
             if ($stmt->execute()) {
-                // Configuración de PHPMailer
                 $mail = new PHPMailer(true);
                 try {
                     $mail->isSMTP();
@@ -68,17 +73,17 @@ if ($request_method === 'POST') {
                 }
             }
         } catch (mysqli_sql_exception $e) {
-            // Capturamos el error de "Duplicate entry" (Código 1062)
             if ($e->getCode() === 1062) {
                 http_response_code(400);
-                echo "Este correo ya está registrado. Por favor, revisa tu bandeja de entrada o inicia sesión.";
+                echo "Este correo ya está registrado.";
             } else {
                 http_response_code(500);
                 echo "Error en el servidor: " . $e->getMessage();
             }
         }
     }
-    // --- RUTA: LOGIN ---
+
+    // --- RUTA: LOGIN (Con redirección compatible con tu JS) ---
     if ($action === 'login') {
         $correo = $data['correo'];
         $password = $data['password'];
@@ -90,12 +95,19 @@ if ($request_method === 'POST') {
         $user = $result->fetch_assoc();
 
         if ($user && password_verify($password, $user['password_hash'])) {
+            // Guardamos la sesión del usuario para chat.php
+            $_SESSION['id_usuario'] = $user['id_usuario'];
+            $_SESSION['nombre'] = $user['nombre'];
+            $_SESSION['correo'] = $user['correo'];
+
+            // Respondemos con JSON para que el frontend pueda redirigir
+            header('Content-Type: application/json');
             echo json_encode([
                 "status" => "success",
+                "redirect" => "chat.php",
                 "user" => [
                     "id" => $user['id_usuario'],
-                    "nombre" => $user['nombre'],
-                    "correo" => $user['correo']
+                    "nombre" => $user['nombre']
                 ]
             ]);
         } else {
