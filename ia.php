@@ -2,22 +2,13 @@
 
 header("Content-Type: application/json");
 
-// Obtener datos enviados desde JS
 $data = json_decode(file_get_contents("php://input"), true);
-
-if (!isset($data["mensaje"])) {
-    echo json_encode([
-        "respuesta" => "No se recibió ningún mensaje."
-    ]);
-    exit;
-}
-
-$mensaje = $data["mensaje"];
+$mensaje = $data["mensaje"] ?? "";
 
 $apiKey = "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";
 
 $body = [
-    "model" => "mistralai/mistral-7b-instruct",
+    "model" => "openchat/openchat-7b",
     "messages" => [
         [
             "role" => "user",
@@ -43,7 +34,7 @@ $response = curl_exec($ch);
 
 if(curl_errno($ch)){
     echo json_encode([
-        "respuesta" => "Error al conectar con la IA."
+        "respuesta" => "Error CURL: " . curl_error($ch)
     ]);
     curl_close($ch);
     exit;
@@ -53,8 +44,27 @@ curl_close($ch);
 
 $result = json_decode($response, true);
 
-$respuesta = $result["choices"][0]["message"]["content"] ?? "La IA no respondió.";
+/* SI HAY ERROR DE API */
+if(isset($result["error"])){
 
-echo json_encode([
-    "respuesta" => $respuesta
-]);
+    echo json_encode([
+        "respuesta" => "Error API: " . $result["error"]["message"]
+    ]);
+    exit;
+
+}
+
+/* RESPUESTA NORMAL */
+if(isset($result["choices"][0]["message"]["content"])){
+
+    echo json_encode([
+        "respuesta" => $result["choices"][0]["message"]["content"]
+    ]);
+
+}else{
+
+    echo json_encode([
+        "respuesta" => "Respuesta desconocida: " . $response
+    ]);
+
+}
