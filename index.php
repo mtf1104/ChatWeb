@@ -13,7 +13,7 @@ if (file_exists('cifrado.php')) {
     include 'cifrado.php';
 }
 
-// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB - TU ORIGINAL INTACTO) ---
+// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
 $host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
 $port = 4000;
 $user = 'MPefCA2vQ18cTr4.root';
@@ -28,7 +28,7 @@ if (!$success) {
     die("Error conectando a TiDB: " . mysqli_connect_error());
 }
 
-// Recibir datos JSON del frontend
+// Recibir datos JSON
 $request_method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents("php://input"), true);
@@ -37,73 +37,88 @@ if ($request_method === 'POST') {
 
     // --- REGISTRO ---
     if ($action === 'registro') {
+
         $nombre = $data['nombre'];
         $correo = $data['correo'];
         $ap_paterno = $data['ap_paterno'];
         $ap_materno = $data['ap_materno'];
         $telefono = $data['telefono'];
-        
+
         $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
         $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
         $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)";
+
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
 
         try {
+
             if ($stmt->execute()) {
 
                 $mail = new PHPMailer(true);
 
-                    try {
+                try {
 
-                        $mail->isSMTP();
-                        $mail->Host = 'smtp.gmail.com';
-                        $mail->SMTPAuth = true;
-                        $mail->Username = 'chatweb545@gmail.com';
-                        $mail->Password = 'fcxghxhubjnsukjn';
-                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                        $mail->Port = 587;
+                    $mail->isSMTP();
+                    $mail->Host = 'smtp.gmail.com';
+                    $mail->SMTPAuth = true;
+                    $mail->Username = 'chatweb545@gmail.com';
+                    $mail->Password = 'fcxghxhubjnsukjn';
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port = 587;
 
-                        $mail->CharSet = 'UTF-8';
-                        $mail->Timeout = 10;
+                    $mail->CharSet = 'UTF-8';
+                    $mail->Timeout = 10;
 
-                        $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
-                        $mail->addAddress($correo);
+                    // ⭐ ESTA PARTE ES LA QUE FALTABA
+                    $mail->SMTPDebug = 2;
+                    $mail->Debugoutput = 'error_log';
 
-                        $mail->isHTML(true);
-                        $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
-                        $mail->Body = "<h2>¡Hola $nombre!</h2>
-                                    <p>Tu contraseña temporal es: <b>$tempPassword</b></p>";
+                    $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
+                    $mail->addAddress($correo);
 
-                        $mail->send();
+                    $mail->isHTML(true);
+                    $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
+                    $mail->Body = "
+                        <h2>¡Hola $nombre!</h2>
+                        <p>Tu contraseña temporal es: <b>$tempPassword</b></p>
+                    ";
 
-                        echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
+                    $mail->send();
 
-                    } catch (Exception $e) {
+                    echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
 
-                        // guardar error en archivo
-                        file_put_contents(
-                            "mail_error.log",
-                            date("Y-m-d H:i:s") . " - " . $mail->ErrorInfo . PHP_EOL,
-                            FILE_APPEND
-                        );
+                } catch (Exception $e) {
 
-                        echo "Usuario creado, pero no se pudo enviar el correo.";
-                    }
+                    file_put_contents(
+                        "mail_error.log",
+                        date("Y-m-d H:i:s") . " - " . $mail->ErrorInfo . PHP_EOL,
+                        FILE_APPEND
+                    );
+
+                    echo "Usuario creado, pero no se pudo enviar el correo.";
+
+                }
+
             }
 
         } catch (mysqli_sql_exception $e) {
 
             if ($e->getCode() === 1062) {
+
                 http_response_code(400);
                 echo "Este correo ya está registrado.";
+
             } else {
+
                 http_response_code(500);
                 echo "Error en el servidor: " . $e->getMessage();
+
             }
 
         }
+
     }
 
     // --- LOGIN ---
@@ -142,6 +157,8 @@ if ($request_method === 'POST') {
             echo "Correo o contraseña incorrectos.";
 
         }
+
     }
+
 }
 ?>
