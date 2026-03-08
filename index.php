@@ -1,15 +1,8 @@
 <?php
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-session_start();
->>>>>>> b5d1ebfe3118f031f3a423118975c03ba9937a21
->>>>>>> a5edebe6bf55c9136a9cc4b18191684e862c633b
 // Iniciamos la sesión al principio para manejar el acceso al chat
 session_start();
 
@@ -44,7 +37,7 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 if ($request_method === 'POST') {
 
-    // --- RUTA: REGISTRO (Mantiene tu lógica de PHPMailer) ---
+    // --- REGISTRO ---
     if ($action === 'registro') {
         $nombre = $data['nombre'];
         $correo = $data['correo'];
@@ -61,29 +54,37 @@ if ($request_method === 'POST') {
 
         try {
             if ($stmt->execute()) {
+
                 $mail = new PHPMailer(true);
+
                 try {
                     $mail->isSMTP();
                     $mail->Host = 'smtp.gmail.com';
                     $mail->SMTPAuth = true;
                     $mail->Username = 'chatweb545@gmail.com';
-                    $mail->Password = 'fcxghxhubjnsukjn'; 
+                    $mail->Password = 'fcxghxhubjnsukjn';
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
                     $mail->Port = 587;
 
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
                     $mail->addAddress($correo);
                     $mail->isHTML(true);
+
                     $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
-                    $mail->Body = "<h2>¡Hola $nombre!</h2><p>Tu contraseña temporal es: <b>$tempPassword</b></p>";
+                    $mail->Body = "<h2>¡Hola $nombre!</h2>
+                                   <p>Tu contraseña temporal es: <b>$tempPassword</b></p>";
 
                     $mail->send();
+
                     echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
+
                 } catch (Exception $e) {
                     echo "Usuario creado, pero hubo un error al enviar el correo.";
                 }
             }
+
         } catch (mysqli_sql_exception $e) {
+
             if ($e->getCode() === 1062) {
                 http_response_code(400);
                 echo "Este correo ya está registrado.";
@@ -91,28 +92,31 @@ if ($request_method === 'POST') {
                 http_response_code(500);
                 echo "Error en el servidor: " . $e->getMessage();
             }
+
         }
     }
 
-    // --- RUTA: LOGIN (Con redirección compatible con tu JS) ---
+    // --- LOGIN ---
     if ($action === 'login') {
+
         $correo = $data['correo'];
         $password = $data['password'];
 
         $stmt = $conn->prepare("SELECT id_usuario, nombre, correo, password_hash FROM usuarios WHERE correo = ?");
         $stmt->bind_param("s", $correo);
         $stmt->execute();
+
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            // Guardamos la sesión del usuario para chat.php
+
             $_SESSION['id_usuario'] = $user['id_usuario'];
             $_SESSION['nombre'] = $user['nombre'];
             $_SESSION['correo'] = $user['correo'];
 
-            // Respondemos con JSON para que el frontend pueda redirigir
             header('Content-Type: application/json');
+
             echo json_encode([
                 "status" => "success",
                 "redirect" => "chat.php",
@@ -121,9 +125,12 @@ if ($request_method === 'POST') {
                     "nombre" => $user['nombre']
                 ]
             ]);
+
         } else {
+
             http_response_code(401);
             echo "Correo o contraseña incorrectos.";
+
         }
     }
 }
