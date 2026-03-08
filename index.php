@@ -77,7 +77,7 @@ if ($request_method === 'POST') {
                     echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
 
                 } catch (Exception $e) {
-                    echo "Usuario creado, pero hubo un error al enviar el correo.";
+                    echo "Usuario creado, pero hubo un error al enviar el correo: {$mail->ErrorInfo}";
                 }
             }
 
