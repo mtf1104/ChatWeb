@@ -65,8 +65,8 @@ if ($request_method === 'POST') {
                     $mail->SMTPAuth = true;
                     $mail->Username = 'chatweb545@gmail.com';
                     $mail->Password = 'fcxghxhubjnsukjn';
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port = 587;
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+                    $mail->Port = 465;
 
                     $mail->CharSet = 'UTF-8';
                     $mail->Timeout = 10;
