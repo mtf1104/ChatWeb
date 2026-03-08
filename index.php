@@ -1,4 +1,15 @@
 <?php
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+session_start();
+>>>>>>> b5d1ebfe3118f031f3a423118975c03ba9937a21
+>>>>>>> a5edebe6bf55c9136a9cc4b18191684e862c633b
 // Iniciamos la sesión al principio para manejar el acceso al chat
 session_start();
 
