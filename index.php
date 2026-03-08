@@ -55,30 +55,42 @@ if ($request_method === 'POST') {
 
                 $mail = new PHPMailer(true);
 
-                try {
-                    $mail->isSMTP();
-                    $mail->Host = 'smtp.gmail.com';
-                    $mail->SMTPAuth = true;
-                    $mail->Username = 'chatweb545@gmail.com';
-                    $mail->Password = 'fcxghxhubjnsukjn';
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port = 587;
+                    try {
 
-                    $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
-                    $mail->addAddress($correo);
-                    $mail->isHTML(true);
+                        $mail->isSMTP();
+                        $mail->Host = 'smtp.gmail.com';
+                        $mail->SMTPAuth = true;
+                        $mail->Username = 'chatweb545@gmail.com';
+                        $mail->Password = 'fcxghxhubjnsukjn';
+                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                        $mail->Port = 587;
 
-                    $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
-                    $mail->Body = "<h2>¡Hola $nombre!</h2>
-                                   <p>Tu contraseña temporal es: <b>$tempPassword</b></p>";
+                        $mail->CharSet = 'UTF-8';
+                        $mail->Timeout = 10;
 
-                    $mail->send();
+                        $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
+                        $mail->addAddress($correo);
 
-                    echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
+                        $mail->isHTML(true);
+                        $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
+                        $mail->Body = "<h2>¡Hola $nombre!</h2>
+                                    <p>Tu contraseña temporal es: <b>$tempPassword</b></p>";
 
-                } catch (Exception $e) {
-                    echo "Usuario creado, pero hubo un error al enviar el correo: {$mail->ErrorInfo}";
-                }
+                        $mail->send();
+
+                        echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
+
+                    } catch (Exception $e) {
+
+                        // guardar error en archivo
+                        file_put_contents(
+                            "mail_error.log",
+                            date("Y-m-d H:i:s") . " - " . $mail->ErrorInfo . PHP_EOL,
+                            FILE_APPEND
+                        );
+
+                        echo "Usuario creado, pero no se pudo enviar el correo.";
+                    }
             }
 
         } catch (mysqli_sql_exception $e) {
