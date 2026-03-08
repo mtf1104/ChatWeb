@@ -39,10 +39,13 @@ $mi_nombre = $_SESSION['nombre'];
 </div>
 
 <ul style="list-style:none;padding:0;margin:0;overflow-y:auto;flex-grow:1;">
+
 <?php
+
 $res = $conn->query("SELECT id_usuario,nombre FROM usuarios WHERE id_usuario != $mi_id");
 
 while($u = $res->fetch_assoc()){
+
 $id=$u['id_usuario'];
 $nombre=htmlspecialchars($u['nombre']);
 
@@ -53,8 +56,10 @@ onclick='cambiarChat(this)'
 style='padding:15px;cursor:pointer;border-bottom:1px solid #eee;'>
 $nombre
 </li>";
+
 }
 ?>
+
 </ul>
 
 <button onclick="location.href='logout.php'"
@@ -100,6 +105,9 @@ Enviar
 let receptorActual=null;
 let cronometro=null;
 
+const ID_IA = 120001;
+
+
 function cambiarChat(el){
 
 receptorActual=el.getAttribute('data-id');
@@ -122,6 +130,10 @@ async function refrescar(){
 
 if(!receptorActual) return;
 
+if(receptorActual == ID_IA){
+return;
+}
+
 const r=await fetch('mensajes.php?action=leer&con='+receptorActual);
 const html=await r.text();
 
@@ -142,6 +154,38 @@ const texto=input.value.trim();
 
 if(!texto) return;
 
+
+/* SI HABLAN CON IA */
+
+if(receptorActual == ID_IA){
+
+mostrarMensaje("Tú",texto);
+
+const r = await fetch('ia.php',{
+
+method:'POST',
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+mensaje:texto
+})
+
+});
+
+const data = await r.json();
+
+mostrarMensaje("IA",data.respuesta);
+
+input.value='';
+return;
+
+}
+
+
+/* CHAT NORMAL */
+
 await fetch('mensajes.php?action=enviar',{
 
 method:'POST',
@@ -154,6 +198,28 @@ mensaje:texto
 
 input.value='';
 refrescar();
+
+}
+
+
+/* MOSTRAR MENSAJE IA */
+
+function mostrarMensaje(usuario,texto){
+
+const box=document.getElementById('box-mensajes');
+
+const div=document.createElement('div');
+
+div.style.padding="10px";
+div.style.background="#fff";
+div.style.borderRadius="10px";
+div.style.maxWidth="60%";
+
+div.innerHTML="<b>"+usuario+":</b><br>"+texto;
+
+box.appendChild(div);
+
+box.scrollTop=box.scrollHeight;
 
 }
 
