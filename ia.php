@@ -8,7 +8,7 @@ $mensaje = $data["mensaje"] ?? "";
 $apiKey = "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";
 
 $body = [
-    "model" => "mistralai/mistral-7b-instruct",
+    "model" => "meta-llama/llama-3-8b-instruct",
     "messages" => [
         [
             "role" => "user",
