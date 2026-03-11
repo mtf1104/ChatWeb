@@ -1,4 +1,4 @@
-/* VARIABLES ORIGINALES */
+/* VARIABLES GLOBALES */
 :root {
     --primary: #00a884;
     --bg: #f0f2f5;
@@ -7,18 +7,23 @@
     --gray: #667781;
     --msg-me: #dcf8c6;
     --msg-them: #ffffff;
+    --msg-shadow: rgba(0, 0, 0, 0.1);
 }
 
 /* ESTILOS BASE */
-body {
+html, body {
+    height: 100%;
+    margin: 0;
     font-family: 'Segoe UI', Helvetica Neue, Helvetica, Lucida Grande, Arial, Ubuntu, Cantarell, sans-serif;
     background-color: var(--bg);
-    margin: 0;
+    color: var(--text);
+}
+
+/* El body por defecto centra el login. En chat.php se usa display: block para evitar conflictos */
+body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    color: var(--text);
 }
 
 /* CONTENEDOR DE LOGIN / REGISTRO */
@@ -45,6 +50,7 @@ input {
     box-sizing: border-box;
     font-size: 14px;
     outline: none;
+    transition: border 0.3s;
 }
 
 input:focus {
@@ -80,19 +86,16 @@ button:hover {
     text-decoration: underline;
 }
 
-/* ESTRUCTURA DEL CHAT PRIVADO */
+/* ESTRUCTURA DEL CHAT */
 .chat-main-container {
     display: flex;
-    width: 95%;
-    max-width: 1200px;
-    height: 90vh;
+    width: 100vw;
+    height: 100vh;
     background: var(--white);
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     overflow: hidden;
 }
 
-/* BARRA LATERAL (CONTACTOS) */
+/* BARRA LATERAL */
 .sidebar {
     width: 350px;
     background-color: var(--white);
@@ -107,11 +110,6 @@ button:hover {
     color: white;
 }
 
-.sidebar-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-}
-
 .user-list {
     list-style: none;
     padding: 0;
@@ -124,9 +122,7 @@ button:hover {
     padding: 15px 20px;
     border-bottom: 1px solid #f0f0f0;
     cursor: pointer;
-    transition: 0.2s;
-    display: flex;
-    align-items: center;
+    transition: background 0.2s;
 }
 
 .user-item:hover {
@@ -152,7 +148,6 @@ button:hover {
     background-color: #f0f2f5;
     border-bottom: 1px solid #ddd;
     font-weight: bold;
-    color: var(--text);
 }
 
 .messages-container {
@@ -171,8 +166,9 @@ button:hover {
     max-width: 65%;
     font-size: 14.5px;
     position: relative;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.12);
+    box-shadow: 0 1px 2px var(--msg-shadow);
     word-wrap: break-word;
+    line-height: 1.4;
 }
 
 .mi-msj {
@@ -187,29 +183,31 @@ button:hover {
     border-top-left-radius: 0;
 }
 
-/* ÁREA DE INPUT */
+/* ÁREA DE ENTRADA */
 .input-area {
-    padding: 12px 20px;
+    padding: 15px 20px;
     background-color: #f0f2f5;
     display: flex;
     align-items: center;
     gap: 12px;
+    border-top: 1px solid #ddd;
 }
 
 .input-area input {
     margin-bottom: 0;
-    border-radius: 25px;
-    border: 1px solid white;
+    border-radius: 20px;
+    border: 1px solid #fff;
     padding: 12px 20px;
+    flex-grow: 1;
 }
 
 .input-area button {
     width: auto;
     padding: 10px 25px;
-    border-radius: 25px;
+    border-radius: 20px;
 }
 
-/* SCROLLBAR PERSONALIZADO */
+/* SCROLLBAR */
 ::-webkit-scrollbar {
     width: 6px;
 }
