@@ -57,16 +57,18 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
-                    // --- CONFIGURACIÓN SENDGRID (REEMPLAZA GMAIL) ---
+                    // --- CONFIGURACIÓN SENDGRID OPTIMIZADA ---
                     $mail->isSMTP();
                     $mail->Host       = 'smtp.sendgrid.net';
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'apikey'; // Siempre es 'apikey'
-                    $mail->Password   = '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'; 
+                    // PEGA TU LLAVE SG ABAJO:
+                    $mail->Password   = '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'; 
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587; // Puerto compatible con Render
+                    $mail->Port       = 587; 
                     $mail->CharSet    = 'UTF-8';
-                    $mail->Timeout    = 20;
+                    $mail->Timeout    = 30; // Más tiempo para evitar el error 110 en Render
+                    $mail->SMTPKeepAlive = true;
 
                     // Destinatarios
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
@@ -84,7 +86,7 @@ if ($request_method === 'POST') {
                     echo "¡Registro exitoso! Revisa tu correo para obtener tu contraseña.";
                 } catch (Exception $e) {
                     error_log("PHPMailer Error: " . $mail->ErrorInfo);
-                    echo "Usuario creado, pero hubo un problema al enviar el correo. Contacta a soporte.";
+                    echo "Usuario creado, pero hubo un problema al enviar el correo. Revisa la configuración de SendGrid.";
                 }
             }
         } catch (mysqli_sql_exception $e) {
