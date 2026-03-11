@@ -1,9 +1,9 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 
-// Configuración de errores (Desactivar en producción)
+// Configuración de errores (0 en producción para no romper JSON)
 error_reporting(E_ALL);
-ini_set('display_errors', 0); // Cambiado a 0 para no romper respuestas JSON
+ini_set('display_errors', 0); 
 
 session_start();
 
@@ -57,15 +57,16 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
-                    // Configuración Servidor SMTP
+                    // --- CONFIGURACIÓN SENDGRID (REEMPLAZA GMAIL) ---
                     $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com';
+                    $mail->Host       = 'smtp.sendgrid.net';
                     $mail->SMTPAuth   = true;
-                    $mail->Username   = 'chatweb545@gmail.com';
-                    $mail->Password   = 'fcxghxhubjnsukjn';
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-                    $mail->Port       = 465;
+                    $mail->Username   = 'apikey'; // Siempre es 'apikey'
+                    $mail->Password   = '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'; 
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port       = 587; // Puerto compatible con Render
                     $mail->CharSet    = 'UTF-8';
+                    $mail->Timeout    = 20;
 
                     // Destinatarios
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
@@ -75,16 +76,15 @@ if ($request_method === 'POST') {
                     $mail->isHTML(true);
                     $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
                     $mail->Body    = "<h2>¡Hola $nombre!</h2>
-                                      <p>Has sido registrado exitosamente.</p>
+                                      <p>Has sido registrado exitosamente en ChatWeb.</p>
                                       <p>Tu contraseña temporal es: <b>$tempPassword</b></p>
                                       <p>Por favor, cámbiala al iniciar sesión por seguridad.</p>";
 
                     $mail->send();
                     echo "¡Registro exitoso! Revisa tu correo para obtener tu contraseña.";
                 } catch (Exception $e) {
-                    // Log de error interno si el correo falla
                     error_log("PHPMailer Error: " . $mail->ErrorInfo);
-                    echo "Usuario creado, pero hubo un problema al enviar el correo de bienvenida.";
+                    echo "Usuario creado, pero hubo un problema al enviar el correo. Contacta a soporte.";
                 }
             }
         } catch (mysqli_sql_exception $e) {
@@ -111,7 +111,6 @@ if ($request_method === 'POST') {
         header('Content-Type: application/json');
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            // Guardar datos en sesión
             $_SESSION['id_usuario'] = $user['id_usuario'];
             $_SESSION['nombre'] = $user['nombre'];
             $_SESSION['correo'] = $user['correo'];
