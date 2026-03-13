@@ -1,9 +1,10 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 
-// Configuración de errores (0 en producción para no romper JSON)
+// Configuración de errores (Desactivar en pantalla, pero registrar en el log)
 error_reporting(E_ALL);
 ini_set('display_errors', 0); 
+ini_set('log_errors', 1);
 
 session_start();
 
@@ -57,18 +58,16 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
-                    // --- CONFIGURACIÓN SENDGRID OPTIMIZADA ---
+                    // --- CONFIGURACIÓN SENDGRID PARA RENDER ---
                     $mail->isSMTP();
                     $mail->Host       = 'smtp.sendgrid.net';
                     $mail->SMTPAuth   = true;
-                    $mail->Username   = 'apikey'; // Siempre es 'apikey'
-                    // PEGA TU LLAVE SG ABAJO:
+                    $mail->Username   = 'apikey'; 
                     $mail->Password   = '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'; 
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587; 
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Cambio a SMTPS
+                    $mail->Port       = 465;                         // Puerto Seguro
                     $mail->CharSet    = 'UTF-8';
-                    $mail->Timeout    = 30; // Más tiempo para evitar el error 110 en Render
-                    $mail->SMTPKeepAlive = true;
+                    $mail->Timeout    = 30;
 
                     // Destinatarios
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
@@ -86,7 +85,7 @@ if ($request_method === 'POST') {
                     echo "¡Registro exitoso! Revisa tu correo para obtener tu contraseña.";
                 } catch (Exception $e) {
                     error_log("PHPMailer Error: " . $mail->ErrorInfo);
-                    echo "Usuario creado, pero hubo un problema al enviar el correo. Revisa la configuración de SendGrid.";
+                    echo "Usuario creado, pero hubo un problema al enviar el correo. Por favor contacta al administrador.";
                 }
             }
         } catch (mysqli_sql_exception $e) {
@@ -97,6 +96,7 @@ if ($request_method === 'POST') {
                 echo "Error al procesar el registro.";
             }
         }
+        exit; // Detener ejecución para evitar fugas de texto
     }
 
     // --- ACCIÓN: LOGIN ---
@@ -129,6 +129,7 @@ if ($request_method === 'POST') {
             http_response_code(401);
             echo json_encode(["status" => "error", "message" => "Credenciales incorrectas."]);
         }
+        exit;
     }
 }
 ?>
