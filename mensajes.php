@@ -13,7 +13,6 @@ $conn = mysqli_init();
 mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL); 
 $success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL, MYSQLI_CLIENT_SSL);
 
-// Error de conexión (visto en image_61ab20.jpg)
 if (!$success || !isset($_SESSION['id_usuario'])) {
     exit("Error de conexión o sesión no iniciada");
 }
@@ -21,19 +20,42 @@ if (!$success || !isset($_SESSION['id_usuario'])) {
 $mi_id = (int)$_SESSION['id_usuario'];
 $action = $_GET['action'] ?? '';
 
-// --- ACCIÓN: ENVIAR MENSAJE ---
+// --- ACCIÓN: ENVIAR MENSAJE (TEXTO O ARCHIVO) ---
 if ($action === 'enviar') {
-    $data = json_decode(file_get_contents("php://input"), true);
-    if (!$data) exit;
+    $receptor = 0;
+    $msj_cifrado = "";
+    $tipo_mensaje = 'texto';
+    $nombre_archivo = null;
 
-    $receptor = (int)$data['receptor_id'];
-    $msj_cifrado = cifrarMensaje($data['mensaje']);
+    // 1. Detectar si es una subida de archivo (FormData)
+    if (!empty($_FILES['archivo'])) {
+        $receptor = (int)$_POST['receptor_id'];
+        $tipo_mensaje = 'archivo';
+        $nombre_archivo = $_FILES['archivo']['name'];
+        
+        $ext = pathinfo($nombre_archivo, PATHINFO_EXTENSION);
+        $nombre_fisico = md5(uniqid()) . "." . $ext;
+        $ruta_destino = "uploads/" . $nombre_fisico;
 
-    // Mantenemos u1 como el menor para evitar duplicados de chat
+        if (move_uploaded_file($_FILES['archivo']['tmp_name'], $ruta_destino)) {
+            $msj_cifrado = cifrarMensaje($nombre_fisico); // Ciframos el nombre del archivo guardado
+        } else {
+            exit("Error al subir archivo");
+        }
+    } 
+    // 2. Si es un mensaje de texto normal (JSON)
+    else {
+        $data = json_decode(file_get_contents("php://input"), true);
+        if (!$data) exit;
+        $receptor = (int)$data['receptor_id'];
+        $msj_cifrado = cifrarMensaje($data['mensaje']);
+    }
+
+    // Identificar chat (u1 siempre menor)
     $u1 = min($mi_id, $receptor);
     $u2 = max($mi_id, $receptor);
 
-    // USANDO NOMBRES REALES: usuario_1 y usuario_2
+    // Buscar si el chat ya existe
     $stmt = $conn->prepare("SELECT id_chat FROM chats WHERE usuario_1 = ? AND usuario_2 = ?");
     $stmt->bind_param("ii", $u1, $u2);
     $stmt->execute();
@@ -48,8 +70,9 @@ if ($action === 'enviar') {
         $id_chat = $res->fetch_assoc()['id_chat'];
     }
 
-    $stmt_m = $conn->prepare("INSERT INTO mensajes (id_chat, id_emisor, contenido_cifrado) VALUES (?, ?, ?)");
-    $stmt_m->bind_param("iis", $id_chat, $mi_id, $msj_cifrado);
+    // Insertar el mensaje con las nuevas columnas
+    $stmt_m = $conn->prepare("INSERT INTO mensajes (id_chat, id_emisor, contenido_cifrado, tipo_mensaje, nombre_archivo) VALUES (?, ?, ?, ?, ?)");
+    $stmt_m->bind_param("iisss", $id_chat, $mi_id, $msj_cifrado, $tipo_mensaje, $nombre_archivo);
     $stmt_m->execute();
     exit;
 }
@@ -60,7 +83,6 @@ if ($action === 'leer') {
     $u1 = min($mi_id, $otro_id);
     $u2 = max($mi_id, $otro_id);
 
-    // USANDO NOMBRES REALES: usuario_1 y usuario_2 (Sin alias 'c.' conflictivos)
     $stmt_c = $conn->prepare("SELECT id_chat FROM chats WHERE usuario_1 = ? AND usuario_2 = ?");
     $stmt_c->bind_param("ii", $u1, $u2);
     $stmt_c->execute();
@@ -69,15 +91,34 @@ if ($action === 'leer') {
     if ($res_c->num_rows > 0) {
         $id_chat = $res_c->fetch_assoc()['id_chat'];
 
-        $stmt_msg = $conn->prepare("SELECT id_emisor, contenido_cifrado FROM mensajes WHERE id_chat = ? ORDER BY fecha_envio ASC");
+        $stmt_msg = $conn->prepare("SELECT id_emisor, contenido_cifrado, tipo_mensaje, nombre_archivo, fecha_envio FROM mensajes WHERE id_chat = ? ORDER BY fecha_envio ASC");
         $stmt_msg->bind_param("i", $id_chat);
         $stmt_msg->execute();
         $res_msg = $stmt_msg->get_result();
 
         while ($row = $res_msg->fetch_assoc()) {
             $clase = ($row['id_emisor'] == $mi_id) ? "mi-msj" : "otro-msj";
-            $texto = descifrarMensaje($row['contenido_cifrado']);
-            echo "<div class='mensaje $clase'>" . htmlspecialchars($texto) . "</div>";
+            $contenido = descifrarMensaje($row['contenido_cifrado']);
+            $fecha = date("H:i", strtotime($row['fecha_envio']));
+
+            echo "<div class='mensaje $clase'>";
+            
+            if ($row['tipo_mensaje'] === 'archivo') {
+                $ext = strtolower(pathinfo($row['nombre_archivo'], PATHINFO_EXTENSION));
+                $es_imagen = in_array($ext, ['jpg', 'jpeg', 'png', 'gif']);
+                
+                if ($es_imagen) {
+                    echo "<img src='uploads/$contenido' style='max-width:100%; border-radius:5px;'><br>";
+                }
+                echo "<a href='uploads/$contenido' target='_blank' style='color:inherit; text-decoration:underline; font-size:0.9em;'>";
+                echo "📄 " . htmlspecialchars($row['nombre_archivo']);
+                echo "</a>";
+            } else {
+                echo htmlspecialchars($contenido);
+            }
+            
+            echo "<span style='display:block; font-size:10px; text-align:right; opacity:0.6; margin-top:5px;'>$fecha</span>";
+            echo "</div>";
         }
     } else {
         echo "<p style='text-align:center; color:gray; margin-top:20px;'>No hay mensajes aún.</p>";

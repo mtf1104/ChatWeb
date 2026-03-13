@@ -39,9 +39,14 @@ $mi_nombre = $_SESSION['nombre'];
         </div>
 
         <ul class="user-list" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex-grow:1;">
+            <li class='user-item' data-id='120001' data-nombre='Asistente IA' onclick='cambiarChat(this)' 
+                style='padding:15px; cursor:pointer; border-bottom:1px solid #eee; background: #f9f9f9;'>
+                <strong>🤖 Asistente IA</strong>
+            </li>
+
             <?php
-            // Lista de usuarios reales
-            $res = $conn->query("SELECT id_usuario, nombre FROM usuarios WHERE id_usuario != $mi_id");
+            // Lista de usuarios reales (excluyendo al usuario actual y al ID de la IA si ya existe en BD)
+            $res = $conn->query("SELECT id_usuario, nombre FROM usuarios WHERE id_usuario != $mi_id AND id_usuario != 120001");
             while($u = $res->fetch_assoc()){
                 $id = $u['id_usuario'];
                 $nombre = htmlspecialchars($u['nombre']);
@@ -68,9 +73,14 @@ $mi_nombre = $_SESSION['nombre'];
             </div>
 
         <form id="form-envio" onsubmit="enviar(event)" style="display:none; padding:15px; background:#f0f2f5; border-top:1px solid #ddd;">
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex; gap:10px; align-items:center;">
+                
+                <label for="input-file" style="cursor:pointer; font-size:22px; padding:0 10px;" title="Adjuntar archivo">📎</label>
+                <input type="file" id="input-file" style="display:none" onchange="enviarArchivo(this)">
+
                 <input type="text" id="input-msj" placeholder="Escribe un mensaje..." autocomplete="off"
                        style="flex-grow:1; padding:12px; border-radius:20px; border:1px solid #ccc; outline:none;">
+                
                 <button type="submit" style="padding:10px 20px; background:#00a884; color:white; border:none; border-radius:25px; cursor:pointer; font-weight:bold;">
                     Enviar
                 </button>
@@ -82,7 +92,7 @@ $mi_nombre = $_SESSION['nombre'];
 <script>
 let receptorActual = null;
 let cronometro = null;
-const ID_IA = 120001; // ID reservado para la Inteligencia Artificial
+const ID_IA = 120001; 
 
 function cambiarChat(el){
     receptorActual = el.getAttribute('data-id');
@@ -90,7 +100,7 @@ function cambiarChat(el){
 
     document.getElementById('header-chat').innerText = "Chat con: " + nombre;
     document.getElementById('form-envio').style.display = 'block';
-    document.getElementById('box-mensajes').innerHTML = ''; // Limpiar al cambiar
+    document.getElementById('box-mensajes').innerHTML = ''; 
 
     document.querySelectorAll('.user-item').forEach(i => i.style.background = 'white');
     el.style.background = '#e7f5f2';
@@ -98,7 +108,6 @@ function cambiarChat(el){
     refrescar();
 
     if(cronometro) clearInterval(cronometro);
-    // Solo activar auto-refresco si NO es la IA
     if(receptorActual != ID_IA) {
         cronometro = setInterval(refrescar, 2000);
     }
@@ -124,11 +133,9 @@ async function enviar(e){
     const texto = input.value.trim();
     if(!texto) return;
 
-    /* ESCENARIO A: CHAT CON IA */
     if(receptorActual == ID_IA){
         mostrarMensajeLocal("Tú", texto, "mi-msj");
         input.value = '';
-
         try {
             const r = await fetch('ia.php', {
                 method: 'POST',
@@ -143,7 +150,6 @@ async function enviar(e){
         return;
     }
 
-    /* ESCENARIO B: CHAT NORMAL */
     try {
         await fetch('mensajes.php?action=enviar', {
             method: 'POST',
@@ -160,13 +166,29 @@ async function enviar(e){
     }
 }
 
-/**
- * Función auxiliar para mostrar mensajes de IA o errores locales
- */
+// FUNCIÓN PARA ENVIAR ARCHIVOS
+async function enviarArchivo(input) {
+    if (!input.files[0] || !receptorActual) return;
+
+    const formData = new FormData();
+    formData.append('archivo', input.files[0]);
+    formData.append('receptor_id', receptorActual);
+
+    try {
+        await fetch('mensajes.php?action=enviar', {
+            method: 'POST',
+            body: formData 
+        });
+        input.value = ''; 
+        refrescar();
+    } catch (error) {
+        alert("Error al subir el archivo");
+    }
+}
+
 function mostrarMensajeLocal(usuario, texto, clase){
     const box = document.getElementById('box-mensajes');
     const div = document.createElement('div');
-    // Usamos las mismas clases de style.css: mensaje, mi-msj, otro-msj
     div.className = "mensaje " + clase;
     div.innerHTML = "<strong>" + usuario + ":</strong><br>" + texto;
     box.appendChild(div);
