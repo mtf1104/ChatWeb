@@ -1,8 +1,18 @@
 <?php
+require __DIR__ . '/vendor/autoload.php';
+
+// Configuración de errores (0 en producción para no romper JSON)
+error_reporting(E_ALL);
+ini_set('display_errors', 0); 
+
+session_start();
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require 'vendor/autoload.php';
+if (file_exists('cifrado.php')) {
+    include 'cifrado.php';
+}
 
 // --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
 $host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
@@ -16,24 +26,26 @@ mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL);
 $success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL, MYSQLI_CLIENT_SSL);
 
 if (!$success) {
-    die("Error conectando a TiDB: " . mysqli_connect_error());
+    header('Content-Type: application/json');
+    die(json_encode(["status" => "error", "message" => "Error de conexión a la base de datos"]));
 }
 
-// Recibir datos JSON del frontend
+// Recibir datos JSON
 $request_method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents("php://input"), true);
 
 if ($request_method === 'POST') {
 
-    // --- RUTA: REGISTRO ---
+    // --- ACCIÓN: REGISTRO ---
     if ($action === 'registro') {
-        $nombre = $data['nombre'];
-        $correo = $data['correo'];
-        $ap_paterno = $data['ap_paterno'];
-        $ap_materno = $data['ap_materno'];
-        $telefono = $data['telefono'];
-        
+        $nombre = $data['nombre'] ?? '';
+        $correo = $data['correo'] ?? '';
+        $ap_paterno = $data['ap_paterno'] ?? '';
+        $ap_materno = $data['ap_materno'] ?? '';
+        $telefono = $data['telefono'] ?? '';
+
+        // Generar contraseña temporal
         $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
         $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
@@ -42,46 +54,55 @@ if ($request_method === 'POST') {
         $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
 
         try {
-            // Intentamos ejecutar la inserción
             if ($stmt->execute()) {
-                // Configuración de PHPMailer
                 $mail = new PHPMailer(true);
                 try {
+                    // --- CONFIGURACIÓN SENDGRID OPTIMIZADA ---
                     $mail->isSMTP();
-                    $mail->Host = 'smtp.gmail.com';
-                    $mail->SMTPAuth = true;
-                    $mail->Username = 'chatweb545@gmail.com';
-                    $mail->Password = 'fcxghxhubjnsukjn'; 
+                    $mail->Host       = 'smtp.sendgrid.net';
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = 'apikey'; // Siempre es 'apikey'
+                    // PEGA TU LLAVE SG ABAJO:
+                    $mail->Password   = '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'; 
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port = 587;
+                    $mail->Port       = 587; 
+                    $mail->CharSet    = 'UTF-8';
+                    $mail->Timeout    = 30; // Más tiempo para evitar el error 110 en Render
+                    $mail->SMTPKeepAlive = true;
 
+                    // Destinatarios
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
                     $mail->addAddress($correo);
+
+                    // Contenido
                     $mail->isHTML(true);
                     $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
-                    $mail->Body = "<h2>¡Hola $nombre!</h2><p>Tu contraseña temporal es: <b>$tempPassword</b></p>";
+                    $mail->Body    = "<h2>¡Hola $nombre!</h2>
+                                      <p>Has sido registrado exitosamente en ChatWeb.</p>
+                                      <p>Tu contraseña temporal es: <b>$tempPassword</b></p>
+                                      <p>Por favor, cámbiala al iniciar sesión por seguridad.</p>";
 
                     $mail->send();
-                    echo "¡Registro exitoso! Te hemos enviado un correo con tu contraseña.";
+                    echo "¡Registro exitoso! Revisa tu correo para obtener tu contraseña.";
                 } catch (Exception $e) {
-                    echo "Usuario creado, pero hubo un error al enviar el correo.";
+                    error_log("PHPMailer Error: " . $mail->ErrorInfo);
+                    echo "Usuario creado, pero hubo un problema al enviar el correo. Revisa la configuración de SendGrid.";
                 }
             }
         } catch (mysqli_sql_exception $e) {
-            // Capturamos el error de "Duplicate entry" (Código 1062)
+            http_response_code(400);
             if ($e->getCode() === 1062) {
-                http_response_code(400);
-                echo "Este correo ya está registrado. Por favor, revisa tu bandeja de entrada o inicia sesión.";
+                echo "Error: Este correo electrónico ya se encuentra registrado.";
             } else {
-                http_response_code(500);
-                echo "Error en el servidor: " . $e->getMessage();
+                echo "Error al procesar el registro.";
             }
         }
     }
-    // --- RUTA: LOGIN ---
+
+    // --- ACCIÓN: LOGIN ---
     if ($action === 'login') {
-        $correo = $data['correo'];
-        $password = $data['password'];
+        $correo = $data['correo'] ?? '';
+        $password = $data['password'] ?? '';
 
         $stmt = $conn->prepare("SELECT id_usuario, nombre, correo, password_hash FROM usuarios WHERE correo = ?");
         $stmt->bind_param("s", $correo);
@@ -89,18 +110,24 @@ if ($request_method === 'POST') {
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
 
+        header('Content-Type: application/json');
+
         if ($user && password_verify($password, $user['password_hash'])) {
+            $_SESSION['id_usuario'] = $user['id_usuario'];
+            $_SESSION['nombre'] = $user['nombre'];
+            $_SESSION['correo'] = $user['correo'];
+
             echo json_encode([
                 "status" => "success",
+                "redirect" => "chat.php",
                 "user" => [
                     "id" => $user['id_usuario'],
-                    "nombre" => $user['nombre'],
-                    "correo" => $user['correo']
+                    "nombre" => $user['nombre']
                 ]
             ]);
         } else {
             http_response_code(401);
-            echo "Correo o contraseña incorrectos.";
+            echo json_encode(["status" => "error", "message" => "Credenciales incorrectas."]);
         }
     }
 }

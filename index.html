@@ -8,88 +8,97 @@
 </head>
 <body>
     <div class="container">
-        <div id="login-section" class="form-section">
-            <h2>Iniciar Sesión</h2>
-            <input type="email" id="log_cor" placeholder="Correo Electrónico">
-            <input type="password" id="log_pass" placeholder="Contraseña">
-            <button onclick="login()">Entrar</button>
-            <p class="toggle-text">¿No tienes cuenta? <span onclick="toggleForm()">Regístrate aquí</span></p>
+        <div id="login-section">
+            <h2>Bienvenido a ChatWeb</h2>
+            <input type="email" id="log_cor" placeholder="Correo Electrónico" required>
+            <input type="password" id="log_pass" placeholder="Contraseña" required>
+            <button onclick="login()">Iniciar Sesión</button>
+            <p class="toggle-text">¿No tienes cuenta? <span onclick="toggleAuth()">Regístrate aquí</span></p>
         </div>
 
-        <div id="register-section" class="form-section" style="display: none;">
-            <h2>Crear Cuenta</h2>
-            <input type="text" id="reg_nom" placeholder="Nombre">
-            <input type="text" id="reg_pat" placeholder="Apellido Paterno">
-            <input type="text" id="reg_mat" placeholder="Apellido Materno">
-            <input type="text" id="reg_tel" placeholder="Teléfono">
-            <input type="email" id="reg_cor" placeholder="Correo">
-            <button onclick="registrar()">Registrarse</button>
-            <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleForm()">Inicia sesión</span></p>
+        <div id="register-section" style="display:none;">
+            <h2>Crea tu cuenta</h2>
+            <input type="text" id="reg_nom" placeholder="Nombre" required>
+            <input type="text" id="reg_apa" placeholder="Apellido Paterno" required>
+            <input type="text" id="reg_ama" placeholder="Apellido Materno" required>
+            <input type="text" id="reg_tel" placeholder="Teléfono" required>
+            <input type="email" id="reg_cor" placeholder="Correo Electrónico" required>
+            <button onclick="registro()">Registrarme</button>
+            <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()">Inicia sesión</span></p>
         </div>
     </div>
 
     <script>
-        function toggleForm() {
-            const loginSec = document.getElementById('login-section');
-            const registerSec = document.getElementById('register-section');
-            
-            if (loginSec.style.display === "none") {
-                loginSec.style.display = "block";
-                registerSec.style.display = "none";
+        // Cambiar entre formularios
+        function toggleAuth() {
+            const login = document.getElementById('login-section');
+            const register = document.getElementById('register-section');
+            if (login.style.display === 'none') {
+                login.style.display = 'block';
+                register.style.display = 'none';
             } else {
-                loginSec.style.display = "none";
-                registerSec.style.display = "block";
+                login.style.display = 'none';
+                register.style.display = 'block';
             }
         }
 
-        async function registrar() {
-            const data = {
-                nombre: document.getElementById('reg_nom').value,
-                ap_paterno: document.getElementById('reg_pat').value,
-                ap_materno: document.getElementById('reg_mat').value,
-                telefono: document.getElementById('reg_tel').value,
-                correo: document.getElementById('reg_cor').value
-            };
-
-            try {
-                // Se cambió la ruta a 'index.php?action=registro'
-                const res = await fetch('index.php?action=registro', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-                const responseText = await res.text();
-                alert(responseText);
-                if (res.ok) toggleForm(); 
-            } catch (error) {
-                console.error("Error:", error);
-                alert("Hubo un error en la conexión con el servidor.");
-            }
-        }
-
+        // Función de Inicio de Sesión
         async function login() {
             const correo = document.getElementById('log_cor').value;
             const password = document.getElementById('log_pass').value;
 
+            if(!correo || !password) return alert("Completa todos los campos");
+
             try {
-                // Se cambió la ruta a 'index.php?action=login'
                 const res = await fetch('index.php?action=login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({correo, password})
                 });
 
-                if(res.ok) {
-                    const result = await res.json();
+                const result = await res.json();
+
+                if (res.ok && result.status === 'success') {
                     alert("¡Bienvenido, " + result.user.nombre + "!");
-                    // Aquí podrías redirigir al usuario: window.location.href = 'dashboard.php';
+                    window.location.href = result.redirect; 
                 } else {
-                    const errorText = await res.text();
-                    alert("Error: " + errorText);
+                    alert("Error: " + (result.message || "Credenciales incorrectas"));
                 }
             } catch (error) {
-                console.error("Error:", error);
-                alert("Error al intentar iniciar sesión.");
+                console.error("Error en login:", error);
+                alert("Hubo un problema al conectar con el servidor.");
+            }
+        }
+
+        // Función de Registro
+        async function registro() {
+            const datos = {
+                nombre: document.getElementById('reg_nom').value,
+                ap_paterno: document.getElementById('reg_apa').value,
+                ap_materno: document.getElementById('reg_ama').value,
+                telefono: document.getElementById('reg_tel').value,
+                correo: document.getElementById('reg_cor').value
+            };
+
+            // Validación simple
+            if(Object.values(datos).some(val => val === "")) return alert("Todos los campos son obligatorios");
+
+            try {
+                const res = await fetch('index.php?action=registro', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(datos)
+                });
+
+                const texto = await res.text();
+                alert(texto);
+
+                if (res.ok) {
+                    toggleAuth(); // Regresar al login tras registro exitoso
+                }
+            } catch (error) {
+                console.error("Error en registro:", error);
+                alert("No se pudo procesar el registro.");
             }
         }
     </script>
