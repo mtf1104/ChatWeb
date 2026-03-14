@@ -6,12 +6,12 @@ require 'vendor/autoload.php';
 
 session_start();
 
-// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
-$host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
+// --- CONFIGURACIÓN DE BASE DE DATOS (Usando Variables de Entorno) ---
+$host = getenv('DB_HOST') ?: 'gateway01.us-east-1.prod.aws.tidbcloud.com';
 $port = 4000;
-$user = 'MPefCA2vQ18cTr4.root';
-$pass = 'P6IKI4BtZ5q5OSGg';
-$db_name = 'chatweb';
+$user = getenv('DB_USER') ?: 'MPefCA2vQ18cTr4.root';
+$pass = getenv('DB_PASS') ?: 'P6IKI4BtZ5q5OSGg';
+$db_name = getenv('DB_NAME') ?: 'chatweb';
 
 $conn = mysqli_init();
 mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL); 
@@ -28,7 +28,6 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 if ($request_method === 'POST') {
 
-    // --- RUTA: REGISTRO ---
     if ($action === 'registro') {
         $nombre = $data['nombre'] ?? '';
         $correo = $data['correo'] ?? '';
@@ -47,22 +46,25 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
-                    // CONFIGURACIÓN PARA DEBUG (Revisa los logs de Render después de intentar un registro)
-                    $mail->SMTPDebug = 2; 
-                    $mail->Debugoutput = function($str, $level) {
-                        error_log("PHPMailer Debug: $str");
-                    };
-
+                    // CONFIGURACIÓN SMTP
                     $mail->isSMTP();
                     $mail->Host       = 'smtp.gmail.com';
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'chatweb545@gmail.com';
-                    $mail->Password   = 'jwdscahepzivuyvd'; // App Password
+                    $mail->Password   = getenv('SMTP_PASS') ?: 'jwdscahepzivuyvd'; 
 
-                    
-                    // Probamos con TLS en puerto 587 que es más estándar para la nube
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587;
+                    // Cambio a SSL en puerto 465 para evitar "Network is unreachable"
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; 
+                    $mail->Port       = 465;
+
+                    // Opciones para evitar errores de certificados en servidores compartidos
+                    $mail->SMTPOptions = array(
+                        'ssl' => array(
+                            'verify_peer' => false,
+                            'verify_peer_name' => false,
+                            'allow_self_signed' => true
+                        )
+                    );
 
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
                     $mail->addAddress($correo);
@@ -77,7 +79,6 @@ if ($request_method === 'POST') {
                     $mail->send();
                     echo "¡Registro exitoso! Revisa tu correo.";
                 } catch (Exception $e) {
-                    // Log del error específico en el servidor
                     error_log("Error de PHPMailer: " . $mail->ErrorInfo);
                     http_response_code(500);
                     echo "Usuario creado, pero hubo un error al enviar el correo: " . $mail->ErrorInfo;
@@ -85,16 +86,11 @@ if ($request_method === 'POST') {
             }
         } catch (mysqli_sql_exception $e) {
             http_response_code(400);
-            if ($e->getCode() === 1062) {
-                echo "Este correo ya está registrado.";
-            } else {
-                echo "Error en el registro: " . $e->getMessage();
-            }
+            echo ($e->getCode() === 1062) ? "Este correo ya está registrado." : "Error: " . $e->getMessage();
         }
         exit;
     }
 
-    // --- RUTA: LOGIN ---
     if ($action === 'login') {
         $correo = $data['correo'] ?? '';
         $password = $data['password'] ?? '';
