@@ -54,8 +54,8 @@ if ($request_method === 'POST') {
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'chatweb545@gmail.com';
                     $mail->Password   = 'fcxghxhubjnsukjn'; // Tu App Password de 16 letras
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587;
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Cambia STARTTLS por SMTPS
+                    $mail->Port       = 465;
 
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
                     $mail->addAddress($correo);
