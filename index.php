@@ -57,7 +57,8 @@ if ($request_method === 'POST') {
                     $mail->Host       = 'smtp.gmail.com';
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'chatweb545@gmail.com';
-                    $mail->Password   = 'fcxghxhubjnsukjn'; // App Password
+                    $mail->Password   = 'jwdscahepzivuyvd'; // App Password
+
                     
                     // Probamos con TLS en puerto 587 que es más estándar para la nube
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
