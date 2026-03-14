@@ -4,7 +4,6 @@ use PHPMailer\PHPMailer\Exception;
 
 require 'vendor/autoload.php';
 
-// Iniciar sesión para que el login funcione
 session_start();
 
 // --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
@@ -23,7 +22,6 @@ if (!$success) {
     die(json_encode(["status" => "error", "message" => "Error conectando a la base de datos"]));
 }
 
-// Recibir datos JSON
 $request_method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents("php://input"), true);
@@ -49,13 +47,21 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
+                    // CONFIGURACIÓN PARA DEBUG (Revisa los logs de Render después de intentar un registro)
+                    $mail->SMTPDebug = 2; 
+                    $mail->Debugoutput = function($str, $level) {
+                        error_log("PHPMailer Debug: $str");
+                    };
+
                     $mail->isSMTP();
                     $mail->Host       = 'smtp.gmail.com';
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'chatweb545@gmail.com';
-                    $mail->Password   = 'fcxghxhubjnsukjn'; // Tu App Password de 16 letras
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Cambia STARTTLS por SMTPS
-                    $mail->Port       = 465;
+                    $mail->Password   = 'fcxghxhubjnsukjn'; // App Password
+                    
+                    // Probamos con TLS en puerto 587 que es más estándar para la nube
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port       = 587;
 
                     $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
                     $mail->addAddress($correo);
@@ -68,10 +74,12 @@ if ($request_method === 'POST') {
                                       <p>Por seguridad, cámbiala al iniciar sesión.</p>";
 
                     $mail->send();
-                    echo "¡Registro exitoso! Revisa tu correo para obtener tu contraseña.";
+                    echo "¡Registro exitoso! Revisa tu correo.";
                 } catch (Exception $e) {
-                    // El usuario se creó pero el correo falló
-                    echo "Usuario creado, pero hubo un error al enviar el correo. Contacta a soporte.";
+                    // Log del error específico en el servidor
+                    error_log("Error de PHPMailer: " . $mail->ErrorInfo);
+                    http_response_code(500);
+                    echo "Usuario creado, pero hubo un error al enviar el correo: " . $mail->ErrorInfo;
                 }
             }
         } catch (mysqli_sql_exception $e) {
@@ -99,13 +107,12 @@ if ($request_method === 'POST') {
         header('Content-Type: application/json');
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            // Guardar datos en la sesión
             $_SESSION['id_usuario'] = $user['id_usuario'];
             $_SESSION['nombre'] = $user['nombre'];
 
             echo json_encode([
                 "status" => "success",
-                "redirect" => "chat.php", // Asegúrate de que este archivo exista
+                "redirect" => "chat.php",
                 "user" => [
                     "id" => $user['id_usuario'],
                     "nombre" => $user['nombre']
