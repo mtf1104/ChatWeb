@@ -4,8 +4,6 @@ use PHPMailer\PHPMailer\Exception;
 
 require 'vendor/autoload.php';
 
-session_start();
-
 // --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
 $host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
 $port = 4000;
@@ -19,110 +17,95 @@ $success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL
 
 if (!$success) {
     header('Content-Type: application/json');
-    die(json_encode(["status" => "error", "message" => "Error conectando a la base de datos"]));
+    die(json_encode(["status" => "error", "message" => "Error de conexión"]));
 }
 
-$request_method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents("php://input"), true);
 
-if ($request_method === 'POST') {
+header('Content-Type: application/json');
 
-    // --- RUTA: REGISTRO ---
-    if ($action === 'registro') {
-        $nombre = $data['nombre'] ?? '';
-        $correo = $data['correo'] ?? '';
-        $ap_paterno = $data['ap_paterno'] ?? '';
-        $ap_materno = $data['ap_materno'] ?? '';
-        $telefono = $data['telefono'] ?? '';
-        
-        $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
-        $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
+// --- RUTA: REGISTRO ---
+if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $nombre = $data['nombre'] ?? '';
+    $ap_paterno = $data['ap_paterno'] ?? '';
+    $ap_materno = $data['ap_materno'] ?? '';
+    $telefono = $data['telefono'] ?? ''; // Ya viene con código de país desde el JS
+    $correo = $data['correo'] ?? '';
 
-        $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
-
-        try {
-            if ($stmt->execute()) {
-                $mail = new PHPMailer(true);
-                try {
-                    // CONFIGURACIÓN PARA DEBUG (Revisa los logs de Render después de intentar un registro)
-                    $mail->SMTPDebug = 2; 
-                    $mail->Debugoutput = function($str, $level) {
-                        error_log("PHPMailer Debug: $str");
-                    };
-
-                    $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com';
-                    $mail->SMTPAuth   = true;
-                    $mail->Username   = 'chatweb545@gmail.com';
-                    $mail->Password   = 'fcxghxhubjnsukjn'; // App Password
-                    
-                    // Probamos con TLS en puerto 587 que es más estándar para la nube
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587;
-
-                    $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
-                    $mail->addAddress($correo);
-                    $mail->isHTML(true);
-                    $mail->CharSet = 'UTF-8';
-                    $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
-                    $mail->Body    = "<h2>¡Hola $nombre!</h2>
-                                      <p>Has sido registrado exitosamente.</p>
-                                      <p>Tu contraseña temporal es: <b>$tempPassword</b></p>
-                                      <p>Por seguridad, cámbiala al iniciar sesión.</p>";
-
-                    $mail->send();
-                    echo "¡Registro exitoso! Revisa tu correo.";
-                } catch (Exception $e) {
-                    // Log del error específico en el servidor
-                    error_log("Error de PHPMailer: " . $mail->ErrorInfo);
-                    http_response_code(500);
-                    echo "Usuario creado, pero hubo un error al enviar el correo: " . $mail->ErrorInfo;
-                }
-            }
-        } catch (mysqli_sql_exception $e) {
-            http_response_code(400);
-            if ($e->getCode() === 1062) {
-                echo "Este correo ya está registrado.";
-            } else {
-                echo "Error en el registro: " . $e->getMessage();
-            }
-        }
+    // 1. Verificar duplicados
+    $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
+    $stmt_check->bind_param("s", $correo);
+    $stmt_check->execute();
+    if ($stmt_check->get_result()->num_rows > 0) {
+        echo json_encode(["status" => "error", "message" => "Este correo ya existe. Revisa tu bandeja."]);
         exit;
     }
 
-    // --- RUTA: LOGIN ---
-    if ($action === 'login') {
-        $correo = $data['correo'] ?? '';
-        $password = $data['password'] ?? '';
+    // 2. Generar contraseña temporal de 8 caracteres
+    $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
+    $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
-        $stmt = $conn->prepare("SELECT id_usuario, nombre, correo, password_hash FROM usuarios WHERE correo = ?");
-        $stmt->bind_param("s", $correo);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
+    // 3. Insertar en DB
+    $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
 
-        header('Content-Type: application/json');
+    if ($stmt->execute()) {
+        $mail_enviado = false;
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = 'chatweb545@gmail.com';
+            $mail->Password   = 'jwdscahepzivuyvd'; 
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = 587;
 
-        if ($user && password_verify($password, $user['password_hash'])) {
-            $_SESSION['id_usuario'] = $user['id_usuario'];
-            $_SESSION['nombre'] = $user['nombre'];
+            $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
+            $mail->addAddress($correo);
+            $mail->isHTML(true);
+            $mail->Subject = 'Bienvenido a ChatWeb - Tu Acceso';
+            $mail->Body    = "Hola <b>$nombre</b>, tu contraseña es: <b>$tempPassword</b>";
 
+            $mail->send();
+            $mail_enviado = true;
+        } catch (Exception $e) { $mail_enviado = false; }
+
+        echo json_encode([
+            "status" => "success", 
+            "temp_pass" => $tempPassword,
+            "mail_ok" => $mail_enviado,
+            "message" => "Registro completado con éxito."
+        ]);
+    } else {
+        echo json_encode(["status" => "error", "message" => "Error interno al guardar datos."]);
+    }
+}
+
+// --- RUTA: LOGIN ---
+if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $correo = $data['correo'] ?? '';
+    $password = $data['password'] ?? '';
+
+    $stmt = $conn->prepare("SELECT nombre, password_hash FROM usuarios WHERE correo = ?");
+    $stmt->bind_param("s", $correo);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($row = $result->fetch_assoc()) {
+        if (password_verify($password, $row['password_hash'])) {
             echo json_encode([
-                "status" => "success",
-                "redirect" => "chat.php",
-                "user" => [
-                    "id" => $user['id_usuario'],
-                    "nombre" => $user['nombre']
-                ]
+                "status" => "success", 
+                "user" => ["nombre" => $row['nombre']],
+                "redirect" => "chat.html" 
             ]);
         } else {
-            http_response_code(401);
-            echo json_encode(["status" => "error", "message" => "Correo o contraseña incorrectos."]);
+            echo json_encode(["status" => "error", "message" => "Contraseña incorrecta."]);
         }
-        exit;
+    } else {
+        echo json_encode(["status" => "error", "message" => "Correo no registrado."]);
     }
 }
 ?>
