@@ -27,11 +27,36 @@ if (!$success) {
 
 $action = $_GET['action'] ?? '';
 
+// --- RUTA: MANIFEST.JSON (Para transformar en App) ---
+if ($action === 'manifest') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        "name" => "ChatWeb Sala Privada",
+        "short_name" => "ChatWeb",
+        "start_url" => "index.php",
+        "display" => "standalone",
+        "background_color" => "#ffffff",
+        "theme_color" => "#00a884",
+        "icons" => [
+            [
+                "src" => "https://cdn-icons-png.flaticon.com/512/4712/4712035.png",
+                "sizes" => "192x192",
+                "type" => "image/png"
+            ],
+            [
+                "src" => "https://cdn-icons-png.flaticon.com/512/4712/4712035.png",
+                "sizes" => "512x512",
+                "type" => "image/png"
+            ]
+        ]
+    ]);
+    exit;
+}
+
 // --- RUTA: REGISTRO ---
 if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
-    // Intentamos leer datos de ambas fuentes: FormData ($_POST) o JSON (input stream)
     $json_input = json_decode(file_get_contents("php://input"), true);
     
     $nombre     = $_POST['nombre']     ?? ($json_input['nombre']     ?? '');
@@ -40,13 +65,11 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $telefono   = $_POST['telefono']   ?? ($json_input['telefono']   ?? ''); 
     $correo     = $_POST['correo']     ?? ($json_input['correo']     ?? '');
 
-    // VALIDACIÓN CRÍTICA: No permitir registros vacíos
     if (empty($nombre) || empty($correo)) {
         echo json_encode(["status" => "error", "message" => "El nombre y el correo son obligatorios."]);
         exit;
     }
 
-    // Validar si el correo ya existe
     $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
@@ -55,7 +78,6 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Manejo de foto de perfil
     $foto_perfil = 'default_avatar.png'; 
     if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
         $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
@@ -77,7 +99,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
-            $mail->Host       = 'smtp.sendgrid.net'; // Usando SendGrid por estabilidad en Render
+            $mail->Host       = 'smtp.sendgrid.net';
             $mail->SMTPAuth   = true;
             $mail->Username   = 'apikey';
             $mail->Password   = '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'; 
