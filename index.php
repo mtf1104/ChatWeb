@@ -31,12 +31,22 @@ $action = $_GET['action'] ?? '';
 if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
-    $nombre = $_POST['nombre'] ?? '';
-    $ap_paterno = $_POST['ap_paterno'] ?? '';
-    $ap_materno = $_POST['ap_materno'] ?? '';
-    $telefono = $_POST['telefono'] ?? ''; 
-    $correo = $_POST['correo'] ?? '';
+    // Intentamos leer datos de ambas fuentes: FormData ($_POST) o JSON (input stream)
+    $json_input = json_decode(file_get_contents("php://input"), true);
+    
+    $nombre     = $_POST['nombre']     ?? ($json_input['nombre']     ?? '');
+    $ap_paterno = $_POST['ap_paterno'] ?? ($json_input['ap_paterno'] ?? '');
+    $ap_materno = $_POST['ap_materno'] ?? ($json_input['ap_materno'] ?? '');
+    $telefono   = $_POST['telefono']   ?? ($json_input['telefono']   ?? ''); 
+    $correo     = $_POST['correo']     ?? ($json_input['correo']     ?? '');
 
+    // VALIDACIÓN CRÍTICA: No permitir registros vacíos
+    if (empty($nombre) || empty($correo)) {
+        echo json_encode(["status" => "error", "message" => "El nombre y el correo son obligatorios."]);
+        exit;
+    }
+
+    // Validar si el correo ya existe
     $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
@@ -45,6 +55,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Manejo de foto de perfil
     $foto_perfil = 'default_avatar.png'; 
     if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
         $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
@@ -66,10 +77,10 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
-            $mail->Host       = 'smtp.gmail.com';
+            $mail->Host       = 'smtp.sendgrid.net'; // Usando SendGrid por estabilidad en Render
             $mail->SMTPAuth   = true;
-            $mail->Username   = 'chatweb545@gmail.com';
-            $mail->Password   = 'jwdscahepzivuyvd'; 
+            $mail->Username   = 'apikey';
+            $mail->Password   = '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'; 
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
             $mail->CharSet    = 'UTF-8';
@@ -129,7 +140,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// --- RUTA: ACTUALIZAR PERFIL (NUEVO) ---
+// --- RUTA: ACTUALIZAR PERFIL ---
 if ($action === 'actualizar_perfil' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     if (!isset($_SESSION['id_usuario'])) {
