@@ -26,21 +26,19 @@ if (!$success) {
 }
 
 $action = $_GET['action'] ?? '';
-$data = json_decode(file_get_contents("php://input"), true);
-
-// Header para respuestas JSON
-if ($action === 'login' || $action === 'registro') {
-    header('Content-Type: application/json');
-}
 
 // --- RUTA: REGISTRO ---
 if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre = $data['nombre'] ?? '';
-    $ap_paterno = $data['ap_paterno'] ?? '';
-    $ap_materno = $data['ap_materno'] ?? '';
-    $telefono = $data['telefono'] ?? ''; 
-    $correo = $data['correo'] ?? '';
+    header('Content-Type: application/json');
 
+    // Nota: Usamos $_POST porque el envío de archivos (fotos) requiere FormData
+    $nombre = $_POST['nombre'] ?? '';
+    $ap_paterno = $_POST['ap_paterno'] ?? '';
+    $ap_materno = $_POST['ap_materno'] ?? '';
+    $telefono = $_POST['telefono'] ?? ''; 
+    $correo = $_POST['correo'] ?? '';
+
+    // Validar si el correo ya existe
     $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
@@ -49,12 +47,22 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- MANEJO DE FOTO DE PERFIL ---
+    $foto_perfil = 'default_avatar.png'; // Valor por defecto
+    if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
+        $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
+        $nombre_foto = "perfil_" . md5(uniqid()) . "." . $ext;
+        if (move_uploaded_file($_FILES['foto_perfil']['tmp_name'], "uploads/" . $nombre_foto)) {
+            $foto_perfil = $nombre_foto;
+        }
+    }
+
     $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
     $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
-    $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)";
+    $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash, foto_perfil) VALUES (?, ?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
+    $stmt->bind_param("sssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash, $foto_perfil);
 
     if ($stmt->execute()) {
         $mail_enviado = false;
@@ -67,6 +75,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail->Password   = 'jwdscahepzivuyvd'; 
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
+            $mail->CharSet    = 'UTF-8';
 
             $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
             $mail->addAddress($correo);
@@ -92,10 +101,12 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // --- RUTA: LOGIN ---
 if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $data = json_decode(file_get_contents("php://input"), true);
+    
     $correo = $data['correo'] ?? '';
     $password = $data['password'] ?? '';
 
-    // Seleccionamos id_usuario para la validación de chat.php y nombre para mostrarlo
     $stmt = $conn->prepare("SELECT id_usuario, nombre, password_hash FROM usuarios WHERE correo = ?");
     $stmt->bind_param("s", $correo);
     $stmt->execute();
@@ -103,12 +114,8 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($row = $result->fetch_assoc()) {
         if (password_verify($password, $row['password_hash'])) {
-            
-            // 2. Guardar datos en la sesión para chat.php
             $_SESSION['id_usuario'] = $row['id_usuario'];
             $_SESSION['nombre'] = $row['nombre'];
-            
-            // Forzar que la sesión se guarde antes de responder
             session_write_close();
 
             echo json_encode([

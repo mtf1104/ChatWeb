@@ -4,7 +4,7 @@ ini_set('session.cookie_samesite', 'None');
 ini_set('session.cookie_secure', 'True');
 session_start();
 
-// 2. Validación de Seguridad: Si no hay id_usuario en la sesión, expulsar al index
+// 2. Validación de Seguridad
 if (!isset($_SESSION['id_usuario'])) { 
     header("Location: index.html"); 
     exit(); 
@@ -25,7 +25,6 @@ if (!$success) {
     die("Error de conexión a la base de datos");
 }
 
-// 3. Obtener datos de la sesión actual
 $mi_id = (int)$_SESSION['id_usuario'];
 $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
 ?>
@@ -37,34 +36,48 @@ $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatWeb - Sala Privada</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .user-item { transition: background 0.3s; display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .user-item:hover { background: #f5f5f5; }
+        .avatar-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ddd; }
+        .header-avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
+    </style>
 </head>
 
 <body style="display:block; margin:0; background:#f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
 
 <div class="chat-main-container" style="display:flex; height:100vh; width:100vw; background:white;">
 
-    <aside style="width:300px; border-right:1px solid #ddd; display:flex; flex-direction:column;">
+    <aside style="width:320px; border-right:1px solid #ddd; display:flex; flex-direction:column;">
         <div style="padding:20px; background:#00a884; color:white;">
             <h3 style="margin:0;">ChatWeb</h3>
             <span>Conectado como: <strong><?php echo htmlspecialchars($mi_nombre); ?></strong></span>
         </div>
 
         <ul class="user-list" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex-grow:1;">
-            <li class='user-item' data-id='120001' data-nombre='Asistente IA' onclick='cambiarChat(this)' 
-                style='padding:15px; cursor:pointer; border-bottom:1px solid #eee; background: #f9f9f9;'>
-                <strong>🤖 Asistente IA</strong>
+            <li class='user-item' data-id='120001' data-nombre='Asistente IA' data-foto='bot_avatar.png' onclick='cambiarChat(this)' style='background: #f9f9f9;'>
+                <img src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" class="avatar-img">
+                <div style="flex-grow:1;">
+                    <strong>Asistente IA</strong>
+                    <div style="font-size: 12px; color: #00a884;">En línea</div>
+                </div>
             </li>
 
             <?php
-            // Lista de usuarios reales (excluyendo al usuario actual y al ID de la IA)
-            $res = $conn->query("SELECT id_usuario, nombre FROM usuarios WHERE id_usuario != $mi_id AND id_usuario != 120001");
+            // Lista de usuarios reales incluyendo su foto_perfil
+            $res = $conn->query("SELECT id_usuario, nombre, foto_perfil FROM usuarios WHERE id_usuario != $mi_id AND id_usuario != 120001");
             if($res) {
                 while($u = $res->fetch_assoc()){
                     $id = $u['id_usuario'];
                     $nombre = htmlspecialchars($u['nombre']);
-                    echo "<li class='user-item' data-id='$id' data-nombre='$nombre' onclick='cambiarChat(this)' 
-                          style='padding:15px; cursor:pointer; border-bottom:1px solid #eee;'>
-                          $nombre
+                    $foto = !empty($u['foto_perfil']) ? $u['foto_perfil'] : 'default_avatar.png';
+                    
+                    echo "<li class='user-item' data-id='$id' data-nombre='$nombre' data-foto='$foto' onclick='cambiarChat(this)'>
+                            <img src='uploads/$foto' class='avatar-img' onerror=\"this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'\">
+                            <div style='flex-grow:1;'>
+                                <strong>$nombre</strong>
+                                <div style='font-size: 12px; color: gray;'>Usuario</div>
+                            </div>
                           </li>";
                 }
             }
@@ -78,12 +91,12 @@ $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
     </aside>
 
     <main style="flex-grow:1; display:flex; flex-direction:column; background:#efe7dd;">
-        <div id="header-chat" style="padding:15px; background:#f0f2f5; font-weight:bold; border-bottom:1px solid #ddd; color:#3b4a54;">
+        <div id="header-chat" style="padding:10px 15px; background:#f0f2f5; display:flex; align-items:center; gap:12px; font-weight:bold; border-bottom:1px solid #ddd; color:#3b4a54; min-height: 50px;">
             Selecciona un contacto para iniciar
         </div>
 
         <div id="box-mensajes" style="flex-grow:1; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;">
-            </div>
+        </div>
 
         <form id="form-envio" onsubmit="enviar(event)" style="display:none; padding:15px; background:#f0f2f5; border-top:1px solid #ddd;">
             <div style="display:flex; gap:10px; align-items:center;">
@@ -109,13 +122,20 @@ const ID_IA = 120001;
 function cambiarChat(el){
     receptorActual = el.getAttribute('data-id');
     const nombre = el.getAttribute('data-nombre');
+    const foto = el.querySelector('img').src;
 
-    document.getElementById('header-chat').innerText = "Chat con: " + nombre;
+    // Actualizar Header con Foto y Nombre
+    document.getElementById('header-chat').innerHTML = `
+        <img src="${foto}" class="header-avatar">
+        <span>${nombre}</span>
+    `;
+    
     document.getElementById('form-envio').style.display = 'block';
     document.getElementById('box-mensajes').innerHTML = ''; 
 
     document.querySelectorAll('.user-item').forEach(i => i.style.background = 'white');
-    el.style.background = '#e7f5f2';
+    // Si no es la IA, resetear fondo, la IA tiene su propio fondo suave en el HTML
+    if(receptorActual != ID_IA) el.style.background = '#e7f5f2';
 
     refrescar();
 
