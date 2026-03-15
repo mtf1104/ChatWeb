@@ -46,8 +46,10 @@ if(empty($mi_foto)) $mi_foto = 'default_avatar.png';
         .user-item:hover { background: #f5f5f5; }
         .avatar-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ddd; }
         .header-avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
-        /* Estilo para el botón de ajustes */
         .mi-perfil-header:hover { background: #008f6f !important; }
+        
+        /* Estilos para el visor de cámara */
+        #video-camara { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 2px solid #00a884; transform: scaleX(-1); display: none; margin: 0 auto; }
     </style>
 </head>
 
@@ -121,24 +123,31 @@ if(empty($mi_foto)) $mi_foto = 'default_avatar.png';
 </div>
 
 <div id="modal-ajustes" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background:white; padding:30px; border-radius:10px; width:350px; text-align:center; position:relative;">
+    <div style="background:white; padding:30px; border-radius:10px; width:380px; text-align:center; position:relative;">
         <span onclick="cerrarAjustes()" style="position:absolute; top:10px; right:15px; cursor:pointer; font-size:20px;">&times;</span>
         <h3>Mi Perfil</h3>
         
-        <div style="margin-bottom:20px;">
-            <img id="img-previa-ajustes" src="uploads/<?php echo $mi_foto; ?>" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:2px solid #00a884;" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">
+        <div style="margin-bottom:20px; position:relative; min-height:120px;">
+            <img id="img-previa-ajustes" src="uploads/<?php echo $mi_foto; ?>" style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:2px solid #00a884;" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">
+            <video id="video-camara" autoplay></video>
+            <canvas id="canvas-foto" style="display:none;"></canvas>
+        </div>
+
+        <div style="margin-bottom:15px; display:flex; justify-content:center; gap:10px;">
+            <button type="button" onclick="activarCamara()" id="btn-abrir-cam" style="padding:5px 10px; font-size:12px; cursor:pointer;">📸 Usar Cámara</button>
+            <button type="button" onclick="tomarFoto()" id="btn-capturar" style="display:none; padding:5px 10px; font-size:12px; background:#00a884; color:white; border:none; border-radius:3px; cursor:pointer;">✅ Tomar Foto</button>
         </div>
 
         <form id="form-update-perfil" onsubmit="actualizarPerfil(event)">
-            <label for="nueva-foto" style="display:block; margin-bottom:10px; color:#00a884; cursor:pointer; font-weight:bold;">
-                📷 Cambiar Foto de Perfil
+            <label for="nueva-foto" style="display:block; margin-bottom:10px; color:#00a884; cursor:pointer; font-weight:bold; font-size:13px;">
+                O selecciona un archivo...
             </label>
             <input type="file" id="nueva-foto" accept="image/*" style="display:none;" onchange="previsualizar(this)">
             
             <input type="text" id="nuevo-nombre" value="<?php echo htmlspecialchars($mi_nombre); ?>" placeholder="Tu nombre" 
                    style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ccc; border-radius:5px;">
             
-            <button type="submit" style="width:100%; padding:10px; background:#00a884; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
+            <button type="submit" id="btn-guardar-ajustes" style="width:100%; padding:10px; background:#00a884; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
                 Guardar Cambios
             </button>
         </form>
@@ -149,6 +158,10 @@ if(empty($mi_foto)) $mi_foto = 'default_avatar.png';
 let receptorActual = null;
 let cronometro = null;
 const ID_IA = 120001; 
+
+// Variables para Cámara
+let streamCamara = null;
+let fotoCapturadaBlob = null;
 
 function cambiarChat(el){
     receptorActual = el.getAttribute('data-id');
@@ -249,17 +262,65 @@ function mostrarMensajeLocal(usuario, texto, clase){
     box.scrollTop = box.scrollHeight;
 }
 
-// FUNCIONES DE AJUSTES
+// --- LÓGICA DE AJUSTES Y CÁMARA ---
+
 function abrirAjustes() {
     document.getElementById('modal-ajustes').style.display = 'flex';
 }
 
 function cerrarAjustes() {
+    detenerCamara();
     document.getElementById('modal-ajustes').style.display = 'none';
+}
+
+async function activarCamara() {
+    const video = document.getElementById('video-camara');
+    const img = document.getElementById('img-previa-ajustes');
+    const btnAbrir = document.getElementById('btn-abrir-cam');
+    const btnCapturar = document.getElementById('btn-capturar');
+
+    try {
+        streamCamara = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = streamCamara;
+        video.style.display = 'block';
+        img.style.display = 'none';
+        btnAbrir.style.display = 'none';
+        btnCapturar.style.display = 'inline-block';
+    } catch (err) {
+        alert("No se pudo acceder a la cámara.");
+    }
+}
+
+function tomarFoto() {
+    const video = document.getElementById('video-camara');
+    const canvas = document.getElementById('canvas-foto');
+    const img = document.getElementById('img-previa-ajustes');
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    canvas.toBlob((blob) => {
+        fotoCapturadaBlob = blob;
+        img.src = URL.createObjectURL(blob);
+        detenerCamara();
+    }, 'image/jpeg');
+}
+
+function detenerCamara() {
+    if (streamCamara) {
+        streamCamara.getTracks().forEach(track => track.stop());
+        streamCamara = null;
+    }
+    document.getElementById('video-camara').style.display = 'none';
+    document.getElementById('img-previa-ajustes').style.display = 'block';
+    document.getElementById('btn-abrir-cam').style.display = 'inline-block';
+    document.getElementById('btn-capturar').style.display = 'none';
 }
 
 function previsualizar(input) {
     if (input.files && input.files[0]) {
+        fotoCapturadaBlob = null; // Resetear si se elige archivo
         let reader = new FileReader();
         reader.onload = function(e) {
             document.getElementById('img-previa-ajustes').src = e.target.result;
@@ -270,12 +331,21 @@ function previsualizar(input) {
 
 async function actualizarPerfil(e) {
     e.preventDefault();
+    const btn = document.getElementById('btn-guardar-ajustes');
+    btn.innerText = "Guardando...";
+    btn.disabled = true;
+
     const formData = new FormData();
-    const foto = document.getElementById('nueva-foto').files[0];
+    const fotoArchivo = document.getElementById('nueva-foto').files[0];
     const nombre = document.getElementById('nuevo-nombre').value;
 
     formData.append('nombre', nombre);
-    if (foto) formData.append('foto_perfil', foto);
+    
+    if (fotoCapturadaBlob) {
+        formData.append('foto_perfil', fotoCapturadaBlob, 'captura.jpg');
+    } else if (fotoArchivo) {
+        formData.append('foto_perfil', fotoArchivo);
+    }
 
     try {
         const r = await fetch('index.php?action=actualizar_perfil', {
@@ -284,13 +354,15 @@ async function actualizarPerfil(e) {
         });
         const res = await r.json();
         if (res.status === 'success') {
-            alert("Perfil actualizado correctamente.");
             location.reload(); 
         } else {
             alert("Error: " + res.message);
+            btn.innerText = "Guardar Cambios";
+            btn.disabled = false;
         }
     } catch (error) {
         console.error("Error:", error);
+        btn.disabled = false;
     }
 }
 </script>
