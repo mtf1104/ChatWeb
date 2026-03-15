@@ -7,7 +7,6 @@ require 'vendor/autoload.php';
 session_start();
 
 // --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
-// Usamos getenv para las variables de Render, con los valores actuales como respaldo
 $host = getenv('DB_HOST') ?: 'gateway01.us-east-1.prod.aws.tidbcloud.com';
 $port = 4000;
 $user = getenv('DB_USER') ?: 'MPefCA2vQ18cTr4.root';
@@ -48,21 +47,19 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
+                    // CONFIGURACIÓN SMTP REVISADA PARA RENDER
                     $mail->isSMTP();
-                    
-                    // TRUCO: Resolvemos el host a IP para evitar errores de red/DNS en Render
-                    $mail->Host       = gethostbyname('smtp.gmail.com'); 
+                    $mail->Host       = 'smtp.gmail.com'; 
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'chatweb545@gmail.com';
-                    // Jalamos la contraseña de la variable de entorno que configuraste
-                    $mail->Password   = getenv('SMTP_PASS') ?: 'jwdscahepzivuyvd'; 
+                    $mail->Password   = getenv('SMTP_PASS'); 
 
-                    // Usamos SSL en el puerto 465 (más estable en Render)
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; 
-                    $mail->Port       = 465;
-                    $mail->Timeout    = 20; // Damos más margen de tiempo
+                    // Usamos STARTTLS y puerto 587 (A veces el 465 está bloqueado en Render Free)
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
+                    $mail->Port       = 587;
+                    $mail->Timeout    = 30; // Aumentamos a 30 segundos por la latencia de Render
 
-                    // Saltamos la verificación de certificado por si el contenedor es viejo
+                    // Opciones críticas para servidores de nube
                     $mail->SMTPOptions = array(
                         'ssl' => array(
                             'verify_peer' => false,
