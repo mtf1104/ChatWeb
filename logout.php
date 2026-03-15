@@ -4,17 +4,23 @@ session_start();
 // 1. Limpiar todas las variables de sesión
 $_SESSION = array();
 
-// 2. Si se desea destruir la sesión completamente, también se debe borrar la cookie de sesión.
-// Nota: ¡Esto destruirá la sesión y no solo los datos de sesión!
+// 2. Borrado profundo de la cookie de sesión
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
-    );
+    
+    // Al setear la cookie para borrarla, mantenemos los flags secure y httponly
+    // y forzamos SameSite=None si es que así se originó en index.php
+    setcookie(session_name(), '', [
+        'expires' => time() - 42000,
+        'path' => $params["path"],
+        'domain' => $params["domain"],
+        'secure' => true, // Importante para Render/HTTPS
+        'httponly' => true,
+        'samesite' => 'None',
+    ]);
 }
 
-// 3. Finalmente, destruir la sesión
+// 3. Finalmente, destruir la sesión en el servidor
 session_destroy();
 
 // 4. Redirigir al login

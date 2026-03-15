@@ -31,14 +31,12 @@ $action = $_GET['action'] ?? '';
 if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
-    // Nota: Usamos $_POST porque el envío de archivos (fotos) requiere FormData
     $nombre = $_POST['nombre'] ?? '';
     $ap_paterno = $_POST['ap_paterno'] ?? '';
     $ap_materno = $_POST['ap_materno'] ?? '';
     $telefono = $_POST['telefono'] ?? ''; 
     $correo = $_POST['correo'] ?? '';
 
-    // Validar si el correo ya existe
     $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
@@ -47,8 +45,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // --- MANEJO DE FOTO DE PERFIL ---
-    $foto_perfil = 'default_avatar.png'; // Valor por defecto
+    $foto_perfil = 'default_avatar.png'; 
     if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
         $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
         $nombre_foto = "perfil_" . md5(uniqid()) . "." . $ext;
@@ -128,6 +125,40 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         echo json_encode(["status" => "error", "message" => "Correo no registrado."]);
+    }
+    exit;
+}
+
+// --- RUTA: ACTUALIZAR PERFIL (NUEVO) ---
+if ($action === 'actualizar_perfil' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['id_usuario'])) {
+        echo json_encode(["status" => "error", "message" => "No autorizado"]);
+        exit;
+    }
+
+    $id = $_SESSION['id_usuario'];
+    $nuevo_nombre = $_POST['nombre'] ?? $_SESSION['nombre'];
+
+    if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
+        $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
+        $nombre_foto = "perfil_" . md5(uniqid()) . "." . $ext;
+        
+        if (move_uploaded_file($_FILES['foto_perfil']['tmp_name'], "uploads/" . $nombre_foto)) {
+            $stmt = $conn->prepare("UPDATE usuarios SET nombre = ?, foto_perfil = ? WHERE id_usuario = ?");
+            $stmt->bind_param("ssi", $nuevo_nombre, $nombre_foto, $id);
+        }
+    } else {
+        $stmt = $conn->prepare("UPDATE usuarios SET nombre = ? WHERE id_usuario = ?");
+        $stmt->bind_param("si", $nuevo_nombre, $id);
+    }
+
+    if ($stmt->execute()) {
+        $_SESSION['nombre'] = $nuevo_nombre; 
+        session_write_close();
+        echo json_encode(["status" => "success"]);
+    } else {
+        echo json_encode(["status" => "error", "message" => "Error al actualizar la base de datos"]);
     }
     exit;
 }

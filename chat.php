@@ -27,6 +27,11 @@ if (!$success) {
 
 $mi_id = (int)$_SESSION['id_usuario'];
 $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
+
+// Consultamos nuestra propia foto para el modal
+$res_mia = $conn->query("SELECT foto_perfil FROM usuarios WHERE id_usuario = $mi_id");
+$mi_foto = ($res_mia && $row_yo = $res_mia->fetch_assoc()) ? $row_yo['foto_perfil'] : 'default_avatar.png';
+if(empty($mi_foto)) $mi_foto = 'default_avatar.png';
 ?>
 
 <!DOCTYPE html>
@@ -41,6 +46,8 @@ $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
         .user-item:hover { background: #f5f5f5; }
         .avatar-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ddd; }
         .header-avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
+        /* Estilo para el botón de ajustes */
+        .mi-perfil-header:hover { background: #008f6f !important; }
     </style>
 </head>
 
@@ -49,8 +56,8 @@ $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
 <div class="chat-main-container" style="display:flex; height:100vh; width:100vw; background:white;">
 
     <aside style="width:320px; border-right:1px solid #ddd; display:flex; flex-direction:column;">
-        <div style="padding:20px; background:#00a884; color:white;">
-            <h3 style="margin:0;">ChatWeb</h3>
+        <div class="mi-perfil-header" onclick="abrirAjustes()" style="padding:20px; background:#00a884; color:white; cursor:pointer; transition: 0.3s;">
+            <h3 style="margin:0;">ChatWeb ⚙️</h3>
             <span>Conectado como: <strong><?php echo htmlspecialchars($mi_nombre); ?></strong></span>
         </div>
 
@@ -64,7 +71,6 @@ $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
             </li>
 
             <?php
-            // Lista de usuarios reales incluyendo su foto_perfil
             $res = $conn->query("SELECT id_usuario, nombre, foto_perfil FROM usuarios WHERE id_usuario != $mi_id AND id_usuario != 120001");
             if($res) {
                 while($u = $res->fetch_assoc()){
@@ -114,6 +120,31 @@ $mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
     </main>
 </div>
 
+<div id="modal-ajustes" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:white; padding:30px; border-radius:10px; width:350px; text-align:center; position:relative;">
+        <span onclick="cerrarAjustes()" style="position:absolute; top:10px; right:15px; cursor:pointer; font-size:20px;">&times;</span>
+        <h3>Mi Perfil</h3>
+        
+        <div style="margin-bottom:20px;">
+            <img id="img-previa-ajustes" src="uploads/<?php echo $mi_foto; ?>" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:2px solid #00a884;" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">
+        </div>
+
+        <form id="form-update-perfil" onsubmit="actualizarPerfil(event)">
+            <label for="nueva-foto" style="display:block; margin-bottom:10px; color:#00a884; cursor:pointer; font-weight:bold;">
+                📷 Cambiar Foto de Perfil
+            </label>
+            <input type="file" id="nueva-foto" accept="image/*" style="display:none;" onchange="previsualizar(this)">
+            
+            <input type="text" id="nuevo-nombre" value="<?php echo htmlspecialchars($mi_nombre); ?>" placeholder="Tu nombre" 
+                   style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ccc; border-radius:5px;">
+            
+            <button type="submit" style="width:100%; padding:10px; background:#00a884; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
+                Guardar Cambios
+            </button>
+        </form>
+    </div>
+</div>
+
 <script>
 let receptorActual = null;
 let cronometro = null;
@@ -124,7 +155,6 @@ function cambiarChat(el){
     const nombre = el.getAttribute('data-nombre');
     const foto = el.querySelector('img').src;
 
-    // Actualizar Header con Foto y Nombre
     document.getElementById('header-chat').innerHTML = `
         <img src="${foto}" class="header-avatar">
         <span>${nombre}</span>
@@ -134,7 +164,6 @@ function cambiarChat(el){
     document.getElementById('box-mensajes').innerHTML = ''; 
 
     document.querySelectorAll('.user-item').forEach(i => i.style.background = 'white');
-    // Si no es la IA, resetear fondo, la IA tiene su propio fondo suave en el HTML
     if(receptorActual != ID_IA) el.style.background = '#e7f5f2';
 
     refrescar();
@@ -219,6 +248,52 @@ function mostrarMensajeLocal(usuario, texto, clase){
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
 }
+
+// FUNCIONES DE AJUSTES
+function abrirAjustes() {
+    document.getElementById('modal-ajustes').style.display = 'flex';
+}
+
+function cerrarAjustes() {
+    document.getElementById('modal-ajustes').style.display = 'none';
+}
+
+function previsualizar(input) {
+    if (input.files && input.files[0]) {
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('img-previa-ajustes').src = e.target.result;
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+async function actualizarPerfil(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    const foto = document.getElementById('nueva-foto').files[0];
+    const nombre = document.getElementById('nuevo-nombre').value;
+
+    formData.append('nombre', nombre);
+    if (foto) formData.append('foto_perfil', foto);
+
+    try {
+        const r = await fetch('index.php?action=actualizar_perfil', {
+            method: 'POST',
+            body: formData
+        });
+        const res = await r.json();
+        if (res.status === 'success') {
+            alert("Perfil actualizado correctamente.");
+            location.reload(); 
+        } else {
+            alert("Error: " + res.message);
+        }
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
 </script>
+
 </body>
 </html>
