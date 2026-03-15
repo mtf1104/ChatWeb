@@ -6,10 +6,10 @@
     <title>ChatWeb - Acceso</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Estilo rápido para el selector de país */
         .phone-group { display: flex; gap: 5px; margin-bottom: 10px; }
         .phone-group select { width: 30%; padding: 10px; border-radius: 5px; }
         .phone-group input { width: 70%; margin-bottom: 0; }
+        .toggle-text span { color: #00a884; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -36,8 +36,6 @@
                     <option value="34">🇪🇸 +34</option>
                     <option value="54">🇦🇷 +54</option>
                     <option value="57">🇨🇴 +57</option>
-                    <option value="56">🇨🇱 +56</option>
-                    <option value="51">🇵🇪 +51</option>
                 </select>
                 <input type="text" id="reg_tel" placeholder="Número (10 dígitos)" required>
             </div>
@@ -60,6 +58,8 @@
             const correo = document.getElementById('log_cor').value;
             const password = document.getElementById('log_pass').value;
 
+            if(!correo || !password) return alert("Completa los campos.");
+
             try {
                 const res = await fetch('index.php?action=login', {
                     method: 'POST',
@@ -67,11 +67,16 @@
                     body: JSON.stringify({correo, password})
                 });
                 const result = await res.json();
+                
                 if (result.status === 'success') {
-                    alert("¡Hola " + result.user.nombre + "!");
+                    // Redirección efectiva al archivo indicado por el servidor
                     window.location.href = result.redirect; 
-                } else { alert(result.message); }
-            } catch (e) { alert("Error de servidor."); }
+                } else { 
+                    alert(result.message); 
+                }
+            } catch (e) { 
+                alert("Error de conexión con el servidor."); 
+            }
         }
 
         async function registro() {
@@ -82,11 +87,11 @@
                 nombre: document.getElementById('reg_nom').value,
                 ap_paterno: document.getElementById('reg_apa').value,
                 ap_materno: document.getElementById('reg_ama').value,
-                telefono: cod + num, // Se guarda como 525512345678
+                telefono: cod + num,
                 correo: document.getElementById('reg_cor').value
             };
 
-            if(!num || !datos.nombre || !datos.correo) return alert("Llena los campos básicos");
+            if(!num || !datos.nombre || !datos.correo) return alert("Llena los campos obligatorios");
 
             try {
                 const res = await fetch('index.php?action=registro', {
@@ -97,19 +102,19 @@
                 const result = await res.json();
 
                 if (result.status === 'success') {
-                    // 1. Mostrar en pantalla
-                    alert(`¡EXITO!\nTu contraseña es: ${result.temp_pass}\n\nEscríbela antes de cerrar.`);
-
-                    // 2. WhatsApp Automático con el código elegido
-                    const msg = `Hola ${datos.nombre}, mi contraseña de ChatWeb es: ${result.temp_pass}`;
-                    const url = `https://wa.me/${datos.telefono}?text=${encodeURIComponent(msg)}`;
+                    alert(`¡EXITO!\nContraseña: ${result.temp_pass}`);
                     
-                    const win = window.open(url, '_blank');
-                    if(!win) alert("Por favor permite las ventanas emergentes para abrir WhatsApp.");
+                    const msg = `Hola ${datos.nombre}, mi clave es: ${result.temp_pass}`;
+                    const url = `https://wa.me/${datos.telefono}?text=${encodeURIComponent(msg)}`;
+                    window.open(url, '_blank');
 
                     toggleAuth();
-                } else { alert(result.message); }
-            } catch (e) { alert("Error en el registro."); }
+                } else { 
+                    alert(result.message); 
+                }
+            } catch (e) { 
+                alert("Error en el registro."); 
+            }
         }
     </script>
 </body>

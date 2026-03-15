@@ -1,4 +1,9 @@
 <?php
+// 1. Configuraciones críticas para que Render acepte la sesión en HTTPS
+ini_set('session.cookie_samesite', 'None');
+ini_set('session.cookie_secure', 'True');
+session_start();
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -17,13 +22,16 @@ $success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL
 
 if (!$success) {
     header('Content-Type: application/json');
-    die(json_encode(["status" => "error", "message" => "Error de conexión"]));
+    die(json_encode(["status" => "error", "message" => "Error de conexión con la base de datos"]));
 }
 
 $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents("php://input"), true);
 
-header('Content-Type: application/json');
+// Header para respuestas JSON
+if ($action === 'login' || $action === 'registro') {
+    header('Content-Type: application/json');
+}
 
 // --- RUTA: REGISTRO ---
 if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -33,20 +41,17 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $telefono = $data['telefono'] ?? ''; 
     $correo = $data['correo'] ?? '';
 
-    // 1. Verificar duplicados
     $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
     if ($stmt_check->get_result()->num_rows > 0) {
-        echo json_encode(["status" => "error", "message" => "Este correo ya existe. Revisa tu bandeja."]);
+        echo json_encode(["status" => "error", "message" => "Este correo ya existe."]);
         exit;
     }
 
-    // 2. Generar contraseña temporal
     $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
     $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
-    // 3. Insertar en DB
     $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
@@ -80,8 +85,9 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             "message" => "Registro completado con éxito."
         ]);
     } else {
-        echo json_encode(["status" => "error", "message" => "Error interno al guardar datos."]);
+        echo json_encode(["status" => "error", "message" => "Error interno al procesar el registro."]);
     }
+    exit;
 }
 
 // --- RUTA: LOGIN ---
@@ -89,21 +95,26 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $correo = $data['correo'] ?? '';
     $password = $data['password'] ?? '';
 
-    $stmt = $conn->prepare("SELECT nombre, password_hash FROM usuarios WHERE correo = ?");
+    // Seleccionamos id_usuario para la validación de chat.php y nombre para mostrarlo
+    $stmt = $conn->prepare("SELECT id_usuario, nombre, password_hash FROM usuarios WHERE correo = ?");
     $stmt->bind_param("s", $correo);
     $stmt->execute();
     $result = $stmt->get_result();
 
     if ($row = $result->fetch_assoc()) {
         if (password_verify($password, $row['password_hash'])) {
-            // INICIO DE SESIÓN
-            session_start();
+            
+            // 2. Guardar datos en la sesión para chat.php
+            $_SESSION['id_usuario'] = $row['id_usuario'];
             $_SESSION['nombre'] = $row['nombre'];
+            
+            // Forzar que la sesión se guarde antes de responder
+            session_write_close();
 
             echo json_encode([
                 "status" => "success", 
                 "user" => ["nombre" => $row['nombre']],
-                "redirect" => "chat.php" // CAMBIADO de .html a .php
+                "redirect" => "chat.php" 
             ]);
         } else {
             echo json_encode(["status" => "error", "message" => "Contraseña incorrecta."]);
@@ -111,5 +122,6 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         echo json_encode(["status" => "error", "message" => "Correo no registrado."]);
     }
+    exit;
 }
 ?>

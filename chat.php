@@ -1,5 +1,10 @@
 <?php
+// 1. Configuración de sesión para compatibilidad con HTTPS y Render
+ini_set('session.cookie_samesite', 'None');
+ini_set('session.cookie_secure', 'True');
 session_start();
+
+// 2. Validación de Seguridad: Si no hay id_usuario en la sesión, expulsar al index
 if (!isset($_SESSION['id_usuario'])) { 
     header("Location: index.html"); 
     exit(); 
@@ -14,28 +19,34 @@ $db_name = 'chatweb';
 
 $conn = mysqli_init();
 mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL); 
-mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL, MYSQLI_CLIENT_SSL);
+$success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL, MYSQLI_CLIENT_SSL);
 
+if (!$success) {
+    die("Error de conexión a la base de datos");
+}
+
+// 3. Obtener datos de la sesión actual
 $mi_id = (int)$_SESSION['id_usuario'];
-$mi_nombre = $_SESSION['nombre'];
+$mi_nombre = isset($_SESSION['nombre']) ? $_SESSION['nombre'] : 'Usuario';
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatWeb - Sala Privada</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body style="display:block; margin:0; background:#f0f2f5;">
+<body style="display:block; margin:0; background:#f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
 
 <div class="chat-main-container" style="display:flex; height:100vh; width:100vw; background:white;">
 
     <aside style="width:300px; border-right:1px solid #ddd; display:flex; flex-direction:column;">
         <div style="padding:20px; background:#00a884; color:white;">
             <h3 style="margin:0;">ChatWeb</h3>
-            <span><?php echo htmlspecialchars($mi_nombre); ?></span>
+            <span>Conectado como: <strong><?php echo htmlspecialchars($mi_nombre); ?></strong></span>
         </div>
 
         <ul class="user-list" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex-grow:1;">
@@ -45,15 +56,17 @@ $mi_nombre = $_SESSION['nombre'];
             </li>
 
             <?php
-            // Lista de usuarios reales (excluyendo al usuario actual y al ID de la IA si ya existe en BD)
+            // Lista de usuarios reales (excluyendo al usuario actual y al ID de la IA)
             $res = $conn->query("SELECT id_usuario, nombre FROM usuarios WHERE id_usuario != $mi_id AND id_usuario != 120001");
-            while($u = $res->fetch_assoc()){
-                $id = $u['id_usuario'];
-                $nombre = htmlspecialchars($u['nombre']);
-                echo "<li class='user-item' data-id='$id' data-nombre='$nombre' onclick='cambiarChat(this)' 
-                      style='padding:15px; cursor:pointer; border-bottom:1px solid #eee;'>
-                      $nombre
-                      </li>";
+            if($res) {
+                while($u = $res->fetch_assoc()){
+                    $id = $u['id_usuario'];
+                    $nombre = htmlspecialchars($u['nombre']);
+                    echo "<li class='user-item' data-id='$id' data-nombre='$nombre' onclick='cambiarChat(this)' 
+                          style='padding:15px; cursor:pointer; border-bottom:1px solid #eee;'>
+                          $nombre
+                          </li>";
+                }
             }
             ?>
         </ul>
@@ -74,7 +87,6 @@ $mi_nombre = $_SESSION['nombre'];
 
         <form id="form-envio" onsubmit="enviar(event)" style="display:none; padding:15px; background:#f0f2f5; border-top:1px solid #ddd;">
             <div style="display:flex; gap:10px; align-items:center;">
-                
                 <label for="input-file" style="cursor:pointer; font-size:22px; padding:0 10px;" title="Adjuntar archivo">📎</label>
                 <input type="file" id="input-file" style="display:none" onchange="enviarArchivo(this)">
 
@@ -115,7 +127,6 @@ function cambiarChat(el){
 
 async function refrescar(){
     if(!receptorActual || receptorActual == ID_IA) return;
-
     try {
         const r = await fetch('mensajes.php?action=leer&con=' + receptorActual);
         const html = await r.text();
@@ -166,19 +177,13 @@ async function enviar(e){
     }
 }
 
-// FUNCIÓN PARA ENVIAR ARCHIVOS
 async function enviarArchivo(input) {
     if (!input.files[0] || !receptorActual) return;
-
     const formData = new FormData();
     formData.append('archivo', input.files[0]);
     formData.append('receptor_id', receptorActual);
-
     try {
-        await fetch('mensajes.php?action=enviar', {
-            method: 'POST',
-            body: formData 
-        });
+        await fetch('mensajes.php?action=enviar', { method: 'POST', body: formData });
         input.value = ''; 
         refrescar();
     } catch (error) {
@@ -195,6 +200,5 @@ function mostrarMensajeLocal(usuario, texto, clase){
     box.scrollTop = box.scrollHeight;
 }
 </script>
-
 </body>
 </html>
