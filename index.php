@@ -47,28 +47,16 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
-                    // CONFIGURACIÓN SMTP REVISADA PARA RENDER
+                    // --- CONFIGURACIÓN PARA MAILTRAP (Resuelve el error de Render) ---
                     $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com'; 
+                    $mail->Host       = 'sandbox.smtp.mailtrap.io'; 
                     $mail->SMTPAuth   = true;
-                    $mail->Username   = 'chatweb545@gmail.com';
+                    // Estas variables las configuramos en el panel de Render
+                    $mail->Username   = getenv('SMTP_USER'); 
                     $mail->Password   = getenv('SMTP_PASS'); 
+                    $mail->Port       = 2525; 
 
-                    // Usamos STARTTLS y puerto 587 (A veces el 465 está bloqueado en Render Free)
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
-                    $mail->Port       = 587;
-                    $mail->Timeout    = 30; // Aumentamos a 30 segundos por la latencia de Render
-
-                    // Opciones críticas para servidores de nube
-                    $mail->SMTPOptions = array(
-                        'ssl' => array(
-                            'verify_peer' => false,
-                            'verify_peer_name' => false,
-                            'allow_self_signed' => true
-                        )
-                    );
-
-                    $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
+                    $mail->setFrom('sistema@chatweb.com', 'ChatWeb');
                     $mail->addAddress($correo);
                     $mail->isHTML(true);
                     $mail->CharSet = 'UTF-8';
@@ -79,7 +67,7 @@ if ($request_method === 'POST') {
                                       <p>Por seguridad, cámbiala al iniciar sesión.</p>";
 
                     $mail->send();
-                    echo "¡Registro exitoso! Revisa tu correo.";
+                    echo "¡Registro exitoso! Revisa tu bandeja de Mailtrap.";
                 } catch (Exception $e) {
                     error_log("Error de PHPMailer: " . $mail->ErrorInfo);
                     http_response_code(500);
