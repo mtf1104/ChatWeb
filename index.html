@@ -10,6 +10,7 @@
         .phone-group select { width: 30%; padding: 10px; border-radius: 5px; }
         .phone-group input { width: 70%; margin-bottom: 0; }
         .toggle-text span { color: #00a884; cursor: pointer; font-weight: bold; }
+        .file-label { display: block; font-size: 12px; color: #666; margin-bottom: 5px; text-align: left; }
     </style>
 </head>
 <body>
@@ -41,6 +42,10 @@
             </div>
 
             <input type="email" id="reg_cor" placeholder="Correo Electrónico" required>
+            
+            <label class="file-label">Foto de perfil (opcional):</label>
+            <input type="file" id="reg_foto" accept="image/*" style="margin-bottom:15px; font-size:12px;">
+
             <button onclick="registro()">Registrarme</button>
             <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()">Inicia sesión</span></p>
         </div>
@@ -69,7 +74,6 @@
                 const result = await res.json();
                 
                 if (result.status === 'success') {
-                    // Redirección efectiva al archivo indicado por el servidor
                     window.location.href = result.redirect; 
                 } else { 
                     alert(result.message); 
@@ -82,30 +86,36 @@
         async function registro() {
             const cod = document.getElementById('country_code').value;
             const num = document.getElementById('reg_tel').value.replace(/\D/g, '');
-            
-            const datos = {
-                nombre: document.getElementById('reg_nom').value,
-                ap_paterno: document.getElementById('reg_apa').value,
-                ap_materno: document.getElementById('reg_ama').value,
-                telefono: cod + num,
-                correo: document.getElementById('reg_cor').value
-            };
+            const nombre = document.getElementById('reg_nom').value;
+            const correo = document.getElementById('reg_cor').value;
+            const foto = document.getElementById('reg_foto').files[0];
 
-            if(!num || !datos.nombre || !datos.correo) return alert("Llena los campos obligatorios");
+            if(!num || !nombre || !correo) return alert("Llena los campos obligatorios");
+
+            // --- USAMOS FORMDATA PARA ENVIAR TEXTO Y ARCHIVOS ---
+            const formData = new FormData();
+            formData.append('nombre', nombre);
+            formData.append('ap_paterno', document.getElementById('reg_apa').value);
+            formData.append('ap_materno', document.getElementById('reg_ama').value);
+            formData.append('telefono', cod + num);
+            formData.append('correo', correo);
+            if(foto) formData.append('foto_perfil', foto);
 
             try {
+                // NOTA: No enviamos Headers de Content-Type, el navegador lo pone solo al usar FormData
                 const res = await fetch('index.php?action=registro', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(datos)
+                    body: formData 
                 });
+                
                 const result = await res.json();
 
                 if (result.status === 'success') {
                     alert(`¡EXITO!\nContraseña: ${result.temp_pass}`);
                     
-                    const msg = `Hola ${datos.nombre}, mi clave es: ${result.temp_pass}`;
-                    const url = `https://wa.me/${datos.telefono}?text=${encodeURIComponent(msg)}`;
+                    // Abrir WhatsApp con la clave
+                    const msg = `Hola ${nombre}, mi clave de ChatWeb es: ${result.temp_pass}`;
+                    const url = `https://wa.me/${cod + num}?text=${encodeURIComponent(msg)}`;
                     window.open(url, '_blank');
 
                     toggleAuth();
@@ -113,7 +123,8 @@
                     alert(result.message); 
                 }
             } catch (e) { 
-                alert("Error en el registro."); 
+                console.error(e);
+                alert("Error en el registro. Revisa la consola."); 
             }
         }
     </script>
