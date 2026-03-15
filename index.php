@@ -6,7 +6,8 @@ require 'vendor/autoload.php';
 
 session_start();
 
-// --- CONFIGURACIÓN DE BASE DE DATOS (Usando Variables de Entorno) ---
+// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
+// Usamos getenv para las variables de Render, con los valores actuales como respaldo
 $host = getenv('DB_HOST') ?: 'gateway01.us-east-1.prod.aws.tidbcloud.com';
 $port = 4000;
 $user = getenv('DB_USER') ?: 'MPefCA2vQ18cTr4.root';
@@ -28,6 +29,7 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 if ($request_method === 'POST') {
 
+    // --- RUTA: REGISTRO ---
     if ($action === 'registro') {
         $nombre = $data['nombre'] ?? '';
         $correo = $data['correo'] ?? '';
@@ -46,18 +48,21 @@ if ($request_method === 'POST') {
             if ($stmt->execute()) {
                 $mail = new PHPMailer(true);
                 try {
-                    // CONFIGURACIÓN SMTP
                     $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com';
+                    
+                    // TRUCO: Resolvemos el host a IP para evitar errores de red/DNS en Render
+                    $mail->Host       = gethostbyname('smtp.gmail.com'); 
                     $mail->SMTPAuth   = true;
                     $mail->Username   = 'chatweb545@gmail.com';
+                    // Jalamos la contraseña de la variable de entorno que configuraste
                     $mail->Password   = getenv('SMTP_PASS') ?: 'jwdscahepzivuyvd'; 
 
-                    // Cambio a SSL en puerto 465 para evitar "Network is unreachable"
+                    // Usamos SSL en el puerto 465 (más estable en Render)
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; 
                     $mail->Port       = 465;
+                    $mail->Timeout    = 20; // Damos más margen de tiempo
 
-                    // Opciones para evitar errores de certificados en servidores compartidos
+                    // Saltamos la verificación de certificado por si el contenedor es viejo
                     $mail->SMTPOptions = array(
                         'ssl' => array(
                             'verify_peer' => false,
@@ -86,11 +91,16 @@ if ($request_method === 'POST') {
             }
         } catch (mysqli_sql_exception $e) {
             http_response_code(400);
-            echo ($e->getCode() === 1062) ? "Este correo ya está registrado." : "Error: " . $e->getMessage();
+            if ($e->getCode() === 1062) {
+                echo "Este correo ya está registrado.";
+            } else {
+                echo "Error en el registro: " . $e->getMessage();
+            }
         }
         exit;
     }
 
+    // --- RUTA: LOGIN ---
     if ($action === 'login') {
         $correo = $data['correo'] ?? '';
         $password = $data['password'] ?? '';
