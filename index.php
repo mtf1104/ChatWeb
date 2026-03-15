@@ -1,9 +1,4 @@
 <?php
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-
-require 'vendor/autoload.php';
-
 session_start();
 
 // --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
@@ -45,47 +40,44 @@ if ($request_method === 'POST') {
 
         try {
             if ($stmt->execute()) {
-                $mail = new PHPMailer(true);
-                try {
-                    // --- CONFIGURACIÓN PARA MAILTRAP (Resuelve el error de Render) ---
-                    $mail->isSMTP();
-                    $mail->Host       = 'sandbox.smtp.mailtrap.io'; 
-                    $mail->SMTPAuth   = true;
-                    // Estas variables las configuramos en el panel de Render
-                    $mail->Username   = getenv('SMTP_USER'); 
-                    $mail->Password   = getenv('SMTP_PASS'); 
-                    $mail->Port       = 2525; 
+                // --- ENVÍO POR API DE MAILTRAP (No usa SMTP, no se bloquea) ---
+                $api_token = getenv('MAILTRAP_API_TOKEN');
+                $inbox_id = "4460529"; // Tu ID de Inbox de las capturas anteriores
 
-                    $mail->setFrom('sistema@chatweb.com', 'ChatWeb');
-                    $mail->addAddress($correo);
-                    $mail->isHTML(true);
-                    $mail->CharSet = 'UTF-8';
-                    $mail->Subject = 'Bienvenido a ChatWeb - Tus Datos de Acceso';
-                    $mail->Body    = "<h2>¡Hola $nombre!</h2>
-                                      <p>Has sido registrado exitosamente.</p>
-                                      <p>Tu contraseña temporal es: <b>$tempPassword</b></p>
-                                      <p>Por seguridad, cámbiala al iniciar sesión.</p>";
+                $email_payload = [
+                    "to" => [["email" => $correo, "name" => $nombre]],
+                    "from" => ["email" => "sistema@chatweb.com", "name" => "ChatWeb System"],
+                    "subject" => "Tus Datos de Acceso - ChatWeb",
+                    "html" => "<h2>¡Hola $nombre!</h2>
+                               <p>Has sido registrado exitosamente.</p>
+                               <p>Tu contraseña temporal es: <b>$tempPassword</b></p>
+                               <p>Cámbiala al iniciar sesión.</p>"
+                ];
 
-                    $mail->send();
-                    echo "¡Registro exitoso! Revisa tu bandeja de Mailtrap.";
-                } catch (Exception $e) {
-                    error_log("Error de PHPMailer: " . $mail->ErrorInfo);
-                    http_response_code(500);
-                    echo "Usuario creado, pero hubo un error al enviar el correo: " . $mail->ErrorInfo;
-                }
+                $url = "https://sandbox.api.mailtrap.io/api/send/$inbox_id";
+                
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($email_payload));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "Content-Type: application/json",
+                    "Api-Token: $api_token"
+                ]);
+
+                $result = curl_exec($ch);
+                curl_close($ch);
+
+                echo "¡Registro exitoso! Revisa tu bandeja de Mailtrap (vía API).";
             }
         } catch (mysqli_sql_exception $e) {
             http_response_code(400);
-            if ($e->getCode() === 1062) {
-                echo "Este correo ya está registrado.";
-            } else {
-                echo "Error en el registro: " . $e->getMessage();
-            }
+            echo ($e->getCode() === 1062) ? "Este correo ya está registrado." : "Error: " . $e->getMessage();
         }
         exit;
     }
 
-    // --- RUTA: LOGIN ---
+    // --- RUTA: LOGIN (Se mantiene igual) ---
     if ($action === 'login') {
         $correo = $data['correo'] ?? '';
         $password = $data['password'] ?? '';
@@ -101,18 +93,10 @@ if ($request_method === 'POST') {
         if ($user && password_verify($password, $user['password_hash'])) {
             $_SESSION['id_usuario'] = $user['id_usuario'];
             $_SESSION['nombre'] = $user['nombre'];
-
-            echo json_encode([
-                "status" => "success",
-                "redirect" => "chat.php",
-                "user" => [
-                    "id" => $user['id_usuario'],
-                    "nombre" => $user['nombre']
-                ]
-            ]);
+            echo json_encode(["status" => "success", "redirect" => "chat.php"]);
         } else {
             http_response_code(401);
-            echo json_encode(["status" => "error", "message" => "Correo o contraseña incorrectos."]);
+            echo json_encode(["status" => "error", "message" => "Credenciales incorrectas."]);
         }
         exit;
     }
