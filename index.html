@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatWeb - Acceso</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilo rápido para el selector de país */
+        .phone-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        .phone-group select { width: 30%; padding: 10px; border-radius: 5px; }
+        .phone-group input { width: 70%; margin-bottom: 0; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -21,7 +27,21 @@
             <input type="text" id="reg_nom" placeholder="Nombre" required>
             <input type="text" id="reg_apa" placeholder="Apellido Paterno" required>
             <input type="text" id="reg_ama" placeholder="Apellido Materno" required>
-            <input type="text" id="reg_tel" placeholder="Teléfono" required>
+            
+            <label>Teléfono:</label>
+            <div class="phone-group">
+                <select id="country_code">
+                    <option value="52">🇲🇽 +52</option>
+                    <option value="1">🇺🇸 +1</option>
+                    <option value="34">🇪🇸 +34</option>
+                    <option value="54">🇦🇷 +54</option>
+                    <option value="57">🇨🇴 +57</option>
+                    <option value="56">🇨🇱 +56</option>
+                    <option value="51">🇵🇪 +51</option>
+                </select>
+                <input type="text" id="reg_tel" placeholder="Número (10 dígitos)" required>
+            </div>
+
             <input type="email" id="reg_cor" placeholder="Correo Electrónico" required>
             <button onclick="registro()">Registrarme</button>
             <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()">Inicia sesión</span></p>
@@ -32,20 +52,13 @@
         function toggleAuth() {
             const login = document.getElementById('login-section');
             const register = document.getElementById('register-section');
-            if (login.style.display === 'none') {
-                login.style.display = 'block';
-                register.style.display = 'none';
-            } else {
-                login.style.display = 'none';
-                register.style.display = 'block';
-            }
+            login.style.display = (login.style.display === 'none') ? 'block' : 'none';
+            register.style.display = (register.style.display === 'none') ? 'block' : 'none';
         }
 
         async function login() {
             const correo = document.getElementById('log_cor').value;
             const password = document.getElementById('log_pass').value;
-
-            if(!correo || !password) return alert("Completa todos los campos");
 
             try {
                 const res = await fetch('index.php?action=login', {
@@ -53,31 +66,27 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({correo, password})
                 });
-
                 const result = await res.json();
-
-                if (res.ok && result.status === 'success') {
-                    alert("¡Bienvenido, " + result.user.nombre + "!");
+                if (result.status === 'success') {
+                    alert("¡Hola " + result.user.nombre + "!");
                     window.location.href = result.redirect; 
-                } else {
-                    alert("Error: " + (result.message || "Credenciales incorrectas"));
-                }
-            } catch (error) {
-                console.error("Error en login:", error);
-                alert("Hubo un problema al conectar con el servidor.");
-            }
+                } else { alert(result.message); }
+            } catch (e) { alert("Error de servidor."); }
         }
 
         async function registro() {
+            const cod = document.getElementById('country_code').value;
+            const num = document.getElementById('reg_tel').value.replace(/\D/g, '');
+            
             const datos = {
                 nombre: document.getElementById('reg_nom').value,
                 ap_paterno: document.getElementById('reg_apa').value,
                 ap_materno: document.getElementById('reg_ama').value,
-                telefono: document.getElementById('reg_tel').value,
+                telefono: cod + num, // Se guarda como 525512345678
                 correo: document.getElementById('reg_cor').value
             };
 
-            if(Object.values(datos).some(val => val === "")) return alert("Todos los campos son obligatorios");
+            if(!num || !datos.nombre || !datos.correo) return alert("Llena los campos básicos");
 
             try {
                 const res = await fetch('index.php?action=registro', {
@@ -85,17 +94,22 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(datos)
                 });
+                const result = await res.json();
 
-                const texto = await res.text();
-                alert(texto); // Muestra el mensaje de éxito o error que viene de PHP
+                if (result.status === 'success') {
+                    // 1. Mostrar en pantalla
+                    alert(`¡EXITO!\nTu contraseña es: ${result.temp_pass}\n\nEscríbela antes de cerrar.`);
 
-                if (res.ok && texto.includes("exitoso")) {
-                    toggleAuth(); 
-                }
-            } catch (error) {
-                console.error("Error en registro:", error);
-                alert("No se pudo procesar el registro.");
-            }
+                    // 2. WhatsApp Automático con el código elegido
+                    const msg = `Hola ${datos.nombre}, mi contraseña de ChatWeb es: ${result.temp_pass}`;
+                    const url = `https://wa.me/${datos.telefono}?text=${encodeURIComponent(msg)}`;
+                    
+                    const win = window.open(url, '_blank');
+                    if(!win) alert("Por favor permite las ventanas emergentes para abrir WhatsApp.");
+
+                    toggleAuth();
+                } else { alert(result.message); }
+            } catch (e) { alert("Error en el registro."); }
         }
     </script>
 </body>
