@@ -159,7 +159,6 @@ let receptorActual = null;
 let cronometro = null;
 const ID_IA = 120001; 
 
-// Variables para Cámara
 let streamCamara = null;
 let fotoCapturadaBlob = null;
 
@@ -320,7 +319,7 @@ function detenerCamara() {
 
 function previsualizar(input) {
     if (input.files && input.files[0]) {
-        fotoCapturadaBlob = null; // Resetear si se elige archivo
+        fotoCapturadaBlob = null; // CRÍTICO: Limpiar captura de cámara para usar el archivo
         let reader = new FileReader();
         reader.onload = function(e) {
             document.getElementById('img-previa-ajustes').src = e.target.result;
@@ -341,10 +340,12 @@ async function actualizarPerfil(e) {
 
     formData.append('nombre', nombre);
     
-    if (fotoCapturadaBlob) {
-        formData.append('foto_perfil', fotoCapturadaBlob, 'captura.jpg');
-    } else if (fotoArchivo) {
+    // CORRECCIÓN: Si hay un archivo seleccionado físicamente en el input, usarlo. 
+    // De lo contrario, usar el Blob de la cámara si existe.
+    if (fotoArchivo) {
         formData.append('foto_perfil', fotoArchivo);
+    } else if (fotoCapturadaBlob) {
+        formData.append('foto_perfil', fotoCapturadaBlob, 'captura.jpg');
     }
 
     try {
@@ -363,6 +364,7 @@ async function actualizarPerfil(e) {
     } catch (error) {
         console.error("Error:", error);
         btn.disabled = false;
+        btn.innerText = "Guardar Cambios";
     }
 }
 </script>
