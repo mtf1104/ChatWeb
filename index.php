@@ -30,7 +30,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = $data['nombre'] ?? '';
     $ap_paterno = $data['ap_paterno'] ?? '';
     $ap_materno = $data['ap_materno'] ?? '';
-    $telefono = $data['telefono'] ?? ''; // Ya viene con código de país desde el JS
+    $telefono = $data['telefono'] ?? ''; 
     $correo = $data['correo'] ?? '';
 
     // 1. Verificar duplicados
@@ -42,7 +42,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // 2. Generar contraseña temporal de 8 caracteres
+    // 2. Generar contraseña temporal
     $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
     $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
@@ -96,10 +96,14 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($row = $result->fetch_assoc()) {
         if (password_verify($password, $row['password_hash'])) {
+            // INICIO DE SESIÓN
+            session_start();
+            $_SESSION['nombre'] = $row['nombre'];
+
             echo json_encode([
                 "status" => "success", 
                 "user" => ["nombre" => $row['nombre']],
-                "redirect" => "chat.html" 
+                "redirect" => "chat.php" // CAMBIADO de .html a .php
             ]);
         } else {
             echo json_encode(["status" => "error", "message" => "Contraseña incorrecta."]);
