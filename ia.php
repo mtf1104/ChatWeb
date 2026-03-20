@@ -1,74 +1,79 @@
 <?php
+/**
+ * ChatWeb - Integración de Inteligencia Artificial
+ * Basado en Llama 3 via OpenRouter
+ */
+
 header("Content-Type: application/json");
 
-// Leer la entrada JSON
-$data = json_decode(file_get_contents("php://input"), true);
+// Capturar entrada
+$input = file_get_contents("php://input");
+$data = json_decode($input, true);
 $mensaje = trim($data["mensaje"] ?? "");
 
-// Si el mensaje está vacío, respondemos de inmediato
+// Validación rápida
 if (empty($mensaje)) {
-    echo json_encode(["respuesta" => "Por favor, escribe algo para poder ayudarte."]);
+    echo json_encode(["respuesta" => "¡Hola! Soy tu asistente en ChatWeb. ¿En qué puedo ayudarte hoy?"]);
     exit;
 }
 
+// Credenciales
 $apiKey = "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";
+$apiUrl = "https://openrouter.ai/api/v1/chat/completions";
 
+// Configuración del modelo y comportamiento
 $body = [
     "model" => "meta-llama/llama-3-8b-instruct",
     "messages" => [
         [
             "role" => "system",
-            "content" => "Eres un asistente servicial y amigable integrado en la plataforma ChatWeb."
+            "content" => "Eres un asistente servicial, experto en tecnología y amigable. Estás integrado en la plataforma 'ChatWeb', una aplicación de mensajería privada. Tus respuestas deben ser concisas y en español."
         ],
         [
             "role" => "user",
             "content" => $mensaje
         ]
-    ]
+    ],
+    "temperature" => 0.7
 ];
 
 $ch = curl_init();
 
 curl_setopt_array($ch, [
-    CURLOPT_URL => "https://openrouter.ai/api/v1/chat/completions",
+    CURLOPT_URL => $apiUrl,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
-    CURLOPT_TIMEOUT => 30, // Máximo 30 segundos de espera
+    CURLOPT_TIMEOUT => 20, // Optimizado para Render
     CURLOPT_HTTPHEADER => [
-        "Authorization: Bearer " . $apiKey,
+        "Authorization: Bearer $apiKey",
         "Content-Type: application/json",
-        "HTTP-Referer: http://localhost/ChatWeb", // Reemplaza con tu dominio real si lo tienes
-        "X-Title: ChatWeb_App"
+        "HTTP-Referer: " . ($_SERVER['HTTP_HOST'] ?? 'chatweb.app'),
+        "X-Title: ChatWeb_Assistant"
     ],
     CURLOPT_POSTFIELDS => json_encode($body)
 ]);
 
 $response = curl_exec($ch);
-$err = curl_error($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
+$error = curl_error($ch);
 curl_close($ch);
 
-// Manejo de errores de conexión (CURL)
-if ($err) {
-    echo json_encode(["respuesta" => "Lo siento, hubo un error de conexión con mi cerebro virtual."]);
+// Manejo de errores de red
+if ($error) {
+    echo json_encode(["respuesta" => "Servicio temporalmente fuera de línea. Por favor, intenta en unos segundos."]);
     exit;
 }
 
 $result = json_decode($response, true);
 
-// Manejo de errores de la API (Cuotas, API Key inválida, etc.)
-if (isset($result["error"])) {
-    $msg_error = $result["error"]["message"] ?? "Error desconocido en la API";
-    echo json_encode(["respuesta" => "Error de la IA: " . $msg_error]);
-    exit;
-}
-
-// Respuesta exitosa
+// Procesar respuesta de la API
 if (isset($result["choices"][0]["message"]["content"])) {
-    $respuesta_ia = $result["choices"][0]["message"]["content"];
+    $respuesta_ia = trim($result["choices"][0]["message"]["content"]);
     echo json_encode(["respuesta" => $respuesta_ia]);
-} else {
-    // Si la estructura es inesperada o el código HTTP no es 200
-    echo json_encode(["respuesta" => "No pude procesar una respuesta en este momento. Inténtalo de nuevo."]);
+} 
+elseif (isset($result["error"])) {
+    // Si la API reporta error (cuota, límite, etc)
+    echo json_encode(["respuesta" => "Mi cerebro digital está un poco saturado ahora. Error: " . ($result["error"]["message"] ?? 'Desconocido')]);
+} 
+else {
+    echo json_encode(["respuesta" => "No logré procesar esa idea. ¿Podrías repetirlo de otra forma?"]);
 }

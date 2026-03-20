@@ -1,131 +1,119 @@
 <?php
-// 1. Configuraciones críticas para que Render mantenga la sesión en las peticiones de fetch/AJAX
+/**
+ * ChatWeb - Motor de Mensajería
+ * Optimización de consultas y seguridad de archivos
+ */
+
 ini_set('session.cookie_samesite', 'None');
 ini_set('session.cookie_secure', 'True');
 session_start();
 
 include 'cifrado.php';
 
-// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB) ---
-$host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
-$port = 4000;
-$user = 'MPefCA2vQ18cTr4.root';
-$pass = 'P6IKI4BtZ5q5OSGg';
-$db_name = 'chatweb';
-
+// --- CONEXIÓN ---
 $conn = mysqli_init();
 mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL); 
-$success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL, MYSQLI_CLIENT_SSL);
+$db_status = mysqli_real_connect($conn, 'gateway01.us-east-1.prod.aws.tidbcloud.com', 'MPefCA2vQ18cTr4.root', 'P6IKI4BtZ5q5OSGg', 'chatweb', 4000, NULL, MYSQLI_CLIENT_SSL);
 
-// 2. Validación: Si no hay conexión o no hay sesión, no procesar nada
-if (!$success || !isset($_SESSION['id_usuario'])) {
-    http_response_code(401); // No autorizado
-    exit("Error de conexión o sesión no iniciada");
+if (!$db_status || !isset($_SESSION['id_usuario'])) {
+    http_response_code(401);
+    exit("Acceso denegado");
 }
 
 $mi_id = (int)$_SESSION['id_usuario'];
 $action = $_GET['action'] ?? '';
 
-// --- ACCIÓN: ENVIAR MENSAJE (TEXTO O ARCHIVO) ---
+// --- ACCIÓN: ENVIAR ---
 if ($action === 'enviar') {
-    $receptor = 0;
     $msj_cifrado = "";
-    $tipo_mensaje = 'texto';
-    $nombre_archivo = null;
+    $tipo = 'texto';
+    $n_archivo = null;
 
-    // Detectar si es una subida de archivo (FormData)
     if (!empty($_FILES['archivo'])) {
         $receptor = (int)$_POST['receptor_id'];
-        $tipo_mensaje = 'archivo';
-        $nombre_archivo = $_FILES['archivo']['name'];
+        $tipo = 'archivo';
+        $n_archivo = $_FILES['archivo']['name'];
         
-        $ext = pathinfo($nombre_archivo, PATHINFO_EXTENSION);
-        $nombre_fisico = md5(uniqid()) . "." . $ext;
-        
-        // Asegúrate de que la carpeta 'uploads' exista en Render
-        $ruta_destino = "uploads/" . $nombre_fisico;
+        $ext = strtolower(pathinfo($n_archivo, PATHINFO_EXTENSION));
+        // Seguridad: Extensiones prohibidas
+        if (in_array($ext, ['php', 'phtml', 'php5', 'exe', 'sh'])) exit("Tipo de archivo no permitido");
 
-        if (move_uploaded_file($_FILES['archivo']['tmp_name'], $ruta_destino)) {
+        $nombre_fisico = md5(uniqid()) . "." . $ext;
+        if (move_uploaded_file($_FILES['archivo']['tmp_name'], "uploads/" . $nombre_fisico)) {
             $msj_cifrado = cifrarMensaje($nombre_fisico); 
-        } else {
-            exit("Error al subir archivo");
-        }
+        } else { exit("Fallo en subida"); }
     } 
     else {
         $data = json_decode(file_get_contents("php://input"), true);
-        if (!$data) exit;
+        if (!$data || empty($data['mensaje'])) exit;
         $receptor = (int)$data['receptor_id'];
         $msj_cifrado = cifrarMensaje($data['mensaje']);
     }
 
+    // Buscar o Crear Chat
     $u1 = min($mi_id, $receptor);
     $u2 = max($mi_id, $receptor);
-
+    
     $stmt = $conn->prepare("SELECT id_chat FROM chats WHERE usuario_1 = ? AND usuario_2 = ?");
     $stmt->bind_param("ii", $u1, $u2);
     $stmt->execute();
-    $res = $stmt->get_result();
+    $chat = $stmt->get_result()->fetch_assoc();
 
-    if ($res->num_rows === 0) {
+    $id_chat = $chat['id_chat'] ?? null;
+
+    if (!$id_chat) {
         $ins = $conn->prepare("INSERT INTO chats (usuario_1, usuario_2) VALUES (?, ?)");
         $ins->bind_param("ii", $u1, $u2);
         $ins->execute();
         $id_chat = $conn->insert_id;
-    } else {
-        $id_chat = $res->fetch_assoc()['id_chat'];
     }
 
     $stmt_m = $conn->prepare("INSERT INTO mensajes (id_chat, id_emisor, contenido_cifrado, tipo_mensaje, nombre_archivo) VALUES (?, ?, ?, ?, ?)");
-    $stmt_m->bind_param("iisss", $id_chat, $mi_id, $msj_cifrado, $tipo_mensaje, $nombre_archivo);
+    $stmt_m->bind_param("iisss", $id_chat, $mi_id, $msj_cifrado, $tipo, $n_archivo);
     $stmt_m->execute();
     exit;
 }
 
-// --- ACCIÓN: LEER MENSAJES ---
-if ($action === 'leer') {
+// --- ACCIÓN: LEER ---
+if ($action === 'leer' && isset($_GET['con'])) {
     $otro_id = (int)$_GET['con'];
     $u1 = min($mi_id, $otro_id);
     $u2 = max($mi_id, $otro_id);
 
-    $stmt_c = $conn->prepare("SELECT id_chat FROM chats WHERE usuario_1 = ? AND usuario_2 = ?");
-    $stmt_c->bind_param("ii", $u1, $u2);
-    $stmt_c->execute();
-    $res_c = $stmt_c->get_result();
+    $stmt = $conn->prepare("
+        SELECT m.id_emisor, m.contenido_cifrado, m.tipo_mensaje, m.nombre_archivo, m.fecha_envio 
+        FROM mensajes m
+        JOIN chats c ON m.id_chat = c.id_chat
+        WHERE c.usuario_1 = ? AND c.usuario_2 = ?
+        ORDER BY m.fecha_envio ASC
+    ");
+    $stmt->bind_param("ii", $u1, $u2);
+    $stmt->execute();
+    $res = $stmt->get_result();
 
-    if ($res_c->num_rows > 0) {
-        $id_chat = $res_c->fetch_assoc()['id_chat'];
-
-        $stmt_msg = $conn->prepare("SELECT id_emisor, contenido_cifrado, tipo_mensaje, nombre_archivo, fecha_envio FROM mensajes WHERE id_chat = ? ORDER BY fecha_envio ASC");
-        $stmt_msg->bind_param("i", $id_chat);
-        $stmt_msg->execute();
-        $res_msg = $stmt_msg->get_result();
-
-        while ($row = $res_msg->fetch_assoc()) {
-            $clase = ($row['id_emisor'] == $mi_id) ? "mi-msj" : "otro-msj";
+    if ($res->num_rows > 0) {
+        while ($row = $res->fetch_assoc()) {
+            $yo = ($row['id_emisor'] == $mi_id);
+            $clase = $yo ? "mi-msj" : "otro-msj";
             $contenido = descifrarMensaje($row['contenido_cifrado']);
-            $fecha = date("H:i", strtotime($row['fecha_envio']));
+            $hora = date("H:i", strtotime($row['fecha_envio']));
 
             echo "<div class='mensaje $clase'>";
             
             if ($row['tipo_mensaje'] === 'archivo') {
                 $ext = strtolower(pathinfo($row['nombre_archivo'], PATHINFO_EXTENSION));
-                $es_imagen = in_array($ext, ['jpg', 'jpeg', 'png', 'gif']);
-                
-                if ($es_imagen) {
-                    echo "<img src='uploads/$contenido' style='max-width:100%; border-radius:5px;'><br>";
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+                    echo "<img src='uploads/$contenido' class='img-chat-msg'><br>";
                 }
-                echo "<a href='uploads/$contenido' target='_blank' style='color:inherit; text-decoration:underline; font-size:0.9em;'>";
-                echo "📄 " . htmlspecialchars($row['nombre_archivo']);
-                echo "</a>";
+                echo "<a href='uploads/$contenido' target='_blank' class='file-link'>📄 " . htmlspecialchars($row['nombre_archivo']) . "</a>";
             } else {
                 echo htmlspecialchars($contenido);
             }
             
-            echo "<span style='display:block; font-size:10px; text-align:right; opacity:0.6; margin-top:5px;'>$fecha</span>";
+            echo "<small class='msg-time'>$hora</small>";
             echo "</div>";
         }
     } else {
-        echo "<p style='text-align:center; color:gray; margin-top:20px;'>No hay mensajes aún.</p>";
+        echo "<p class='no-messages'>No hay mensajes en esta conversación.</p>";
     }
 }
-?>
