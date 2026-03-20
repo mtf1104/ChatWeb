@@ -6,43 +6,38 @@
     <title>ChatWeb - Acceso</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Estilo rápido para el selector de país */
         .phone-group { display: flex; gap: 5px; margin-bottom: 10px; }
-        .phone-group select { width: 30%; padding: 10px; border-radius: 5px; }
-        .phone-group input { width: 70%; margin-bottom: 0; }
+        .phone-group select { width: 35%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
+        .phone-group input { width: 65%; margin-bottom: 0; }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="login-section">
             <h2>Bienvenido a ChatWeb</h2>
-            <input type="email" id="log_cor" placeholder="Correo Electrónico" required>
-            <input type="password" id="log_pass" placeholder="Contraseña" required>
+            <input type="email" id="log_cor" placeholder="Correo Electrónico">
+            <input type="password" id="log_pass" placeholder="Contraseña">
             <button onclick="login()">Iniciar Sesión</button>
             <p class="toggle-text">¿No tienes cuenta? <span onclick="toggleAuth()">Regístrate aquí</span></p>
         </div>
 
         <div id="register-section" style="display:none;">
             <h2>Crea tu cuenta</h2>
-            <input type="text" id="reg_nom" placeholder="Nombre" required>
-            <input type="text" id="reg_apa" placeholder="Apellido Paterno" required>
-            <input type="text" id="reg_ama" placeholder="Apellido Materno" required>
+            <input type="text" id="reg_nom" placeholder="Nombre">
+            <input type="text" id="reg_apa" placeholder="Apellido Paterno">
+            <input type="text" id="reg_ama" placeholder="Apellido Materno">
             
-            <label>Teléfono:</label>
             <div class="phone-group">
                 <select id="country_code">
                     <option value="52">🇲🇽 +52</option>
                     <option value="1">🇺🇸 +1</option>
                     <option value="34">🇪🇸 +34</option>
                     <option value="54">🇦🇷 +54</option>
-                    <option value="57">🇨🇴 +57</option>
-                    <option value="56">🇨🇱 +56</option>
-                    <option value="51">🇵🇪 +51</option>
                 </select>
-                <input type="text" id="reg_tel" placeholder="Número (10 dígitos)" required>
+                <input type="text" id="reg_tel" placeholder="Número (10 dígitos)">
             </div>
 
-            <input type="email" id="reg_cor" placeholder="Correo Electrónico" required>
+            <input type="email" id="reg_cor" placeholder="Correo Electrónico">
             <button onclick="registro()">Registrarme</button>
             <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()">Inicia sesión</span></p>
         </div>
@@ -59,7 +54,6 @@
         async function login() {
             const correo = document.getElementById('log_cor').value;
             const password = document.getElementById('log_pass').value;
-
             try {
                 const res = await fetch('index.php?action=login', {
                     method: 'POST',
@@ -71,22 +65,21 @@
                     alert("¡Hola " + result.user.nombre + "!");
                     window.location.href = result.redirect; 
                 } else { alert(result.message); }
-            } catch (e) { alert("Error de servidor."); }
+            } catch (e) { alert("Error de conexión"); }
         }
 
         async function registro() {
             const cod = document.getElementById('country_code').value;
             const num = document.getElementById('reg_tel').value.replace(/\D/g, '');
-            
             const datos = {
                 nombre: document.getElementById('reg_nom').value,
                 ap_paterno: document.getElementById('reg_apa').value,
                 ap_materno: document.getElementById('reg_ama').value,
-                telefono: cod + num, // Se guarda como 525512345678
+                telefono: cod + num,
                 correo: document.getElementById('reg_cor').value
             };
 
-            if(!num || !datos.nombre || !datos.correo) return alert("Llena los campos básicos");
+            if(!num || !datos.nombre || !datos.correo) return alert("Llena todos los campos");
 
             try {
                 const res = await fetch('index.php?action=registro', {
@@ -94,22 +87,19 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(datos)
                 });
-                const result = await res.json();
+
+                const result = await res.json(); // PROCESAR JSON
 
                 if (result.status === 'success') {
-                    // 1. Mostrar en pantalla
-                    alert(`¡EXITO!\nTu contraseña es: ${result.temp_pass}\n\nEscríbela antes de cerrar.`);
-
-                    // 2. WhatsApp Automático con el código elegido
-                    const msg = `Hola ${datos.nombre}, mi contraseña de ChatWeb es: ${result.temp_pass}`;
-                    const url = `https://wa.me/${datos.telefono}?text=${encodeURIComponent(msg)}`;
+                    alert(`¡ÉXITO!\nTu clave es: ${result.temp_pass}`);
                     
-                    const win = window.open(url, '_blank');
-                    if(!win) alert("Por favor permite las ventanas emergentes para abrir WhatsApp.");
-
+                    // Abrir WhatsApp
+                    const msg = `Hola ${datos.nombre}, mi clave de ChatWeb es: ${result.temp_pass}`;
+                    window.open(`https://wa.me/${datos.telefono}?text=${encodeURIComponent(msg)}`, '_blank');
+                    
                     toggleAuth();
                 } else { alert(result.message); }
-            } catch (e) { alert("Error en el registro."); }
+            } catch (e) { alert("Error en el registro"); }
         }
     </script>
 </body>

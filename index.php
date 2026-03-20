@@ -30,7 +30,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = $data['nombre'] ?? '';
     $ap_paterno = $data['ap_paterno'] ?? '';
     $ap_materno = $data['ap_materno'] ?? '';
-    $telefono = $data['telefono'] ?? ''; // Ya viene con código de país desde el JS
+    $telefono = $data['telefono'] ?? ''; 
     $correo = $data['correo'] ?? '';
 
     // 1. Verificar duplicados
@@ -38,11 +38,11 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
     if ($stmt_check->get_result()->num_rows > 0) {
-        echo json_encode(["status" => "error", "message" => "Este correo ya existe. Revisa tu bandeja."]);
+        echo json_encode(["status" => "error", "message" => "Este correo ya existe."]);
         exit;
     }
 
-    // 2. Generar contraseña temporal de 8 caracteres
+    // 2. Generar contraseña temporal
     $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
     $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
@@ -52,7 +52,7 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
 
     if ($stmt->execute()) {
-        $mail_enviado = false;
+        $mail_ok = false;
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
@@ -66,21 +66,21 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail->setFrom('chatweb545@gmail.com', 'ChatWeb');
             $mail->addAddress($correo);
             $mail->isHTML(true);
-            $mail->Subject = 'Bienvenido a ChatWeb - Tu Acceso';
-            $mail->Body    = "Hola <b>$nombre</b>, tu contraseña es: <b>$tempPassword</b>";
+            $mail->Subject = 'Bienvenido a ChatWeb';
+            $mail->Body    = "Hola <b>$nombre</b>, tu clave es: <b>$tempPassword</b>";
 
             $mail->send();
-            $mail_enviado = true;
-        } catch (Exception $e) { $mail_enviado = false; }
+            $mail_ok = true;
+        } catch (Exception $e) { $mail_ok = false; }
 
         echo json_encode([
             "status" => "success", 
             "temp_pass" => $tempPassword,
-            "mail_ok" => $mail_enviado,
-            "message" => "Registro completado con éxito."
+            "message" => "Registro completado con éxito.",
+            "mail_ok" => $mail_ok
         ]);
     } else {
-        echo json_encode(["status" => "error", "message" => "Error interno al guardar datos."]);
+        echo json_encode(["status" => "error", "message" => "Error al guardar datos."]);
     }
 }
 
@@ -96,11 +96,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($row = $result->fetch_assoc()) {
         if (password_verify($password, $row['password_hash'])) {
-            echo json_encode([
-                "status" => "success", 
-                "user" => ["nombre" => $row['nombre']],
-                "redirect" => "chat.html" 
-            ]);
+            echo json_encode(["status" => "success", "user" => ["nombre" => $row['nombre']], "redirect" => "chat.html"]);
         } else {
             echo json_encode(["status" => "error", "message" => "Contraseña incorrecta."]);
         }
