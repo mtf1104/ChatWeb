@@ -1,7 +1,7 @@
 <?php
 /**
- * ChatWeb - Motor de Mensajería
- * Optimización de consultas y seguridad de archivos
+ * ChatWeb - Motor de Mensajería (Versión Corregida)
+ * Se restauró la visualización de imágenes previa y estilo de archivos
  */
 
 ini_set('session.cookie_samesite', 'None');
@@ -35,7 +35,6 @@ if ($action === 'enviar') {
         $n_archivo = $_FILES['archivo']['name'];
         
         $ext = strtolower(pathinfo($n_archivo, PATHINFO_EXTENSION));
-        // Seguridad: Extensiones prohibidas
         if (in_array($ext, ['php', 'phtml', 'php5', 'exe', 'sh'])) exit("Tipo de archivo no permitido");
 
         $nombre_fisico = md5(uniqid()) . "." . $ext;
@@ -50,7 +49,6 @@ if ($action === 'enviar') {
         $msj_cifrado = cifrarMensaje($data['mensaje']);
     }
 
-    // Buscar o Crear Chat
     $u1 = min($mi_id, $receptor);
     $u2 = max($mi_id, $receptor);
     
@@ -58,7 +56,6 @@ if ($action === 'enviar') {
     $stmt->bind_param("ii", $u1, $u2);
     $stmt->execute();
     $chat = $stmt->get_result()->fetch_assoc();
-
     $id_chat = $chat['id_chat'] ?? null;
 
     if (!$id_chat) {
@@ -102,18 +99,27 @@ if ($action === 'leer' && isset($_GET['con'])) {
             
             if ($row['tipo_mensaje'] === 'archivo') {
                 $ext = strtolower(pathinfo($row['nombre_archivo'], PATHINFO_EXTENSION));
-                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
-                    echo "<img src='uploads/$contenido' class='img-chat-msg'><br>";
+                $es_imagen = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                
+                if ($es_imagen) {
+                    // Vista previa de imagen con link para abrirla
+                    echo "<a href='uploads/$contenido' target='_blank'>";
+                    echo "<img src='uploads/$contenido' class='img-chat-msg' style='max-width:200px; display:block; border-radius:5px; margin-bottom:5px;'>";
+                    echo "</a>";
                 }
-                echo "<a href='uploads/$contenido' target='_blank' class='file-link'>📄 " . htmlspecialchars($row['nombre_archivo']) . "</a>";
+                
+                // Link de descarga/apertura para cualquier archivo
+                echo "<a href='uploads/$contenido' target='_blank' style='color:inherit; text-decoration:underline; font-size:0.9em; display:flex; align-items:center; gap:5px;'>";
+                echo "📎 " . htmlspecialchars($row['nombre_archivo']);
+                echo "</a>";
             } else {
-                echo htmlspecialchars($contenido);
+                echo nl2br(htmlspecialchars($contenido));
             }
             
-            echo "<small class='msg-time'>$hora</small>";
+            echo "<small class='msg-time' style='display:block; font-size:10px; text-align:right; opacity:0.6; margin-top:5px;'>$hora</small>";
             echo "</div>";
         }
     } else {
-        echo "<p class='no-messages'>No hay mensajes en esta conversación.</p>";
+        echo "<p style='text-align:center; color:gray; margin-top:20px;'>No hay mensajes en esta conversación.</p>";
     }
 }
