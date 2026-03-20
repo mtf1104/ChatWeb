@@ -12,16 +12,8 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4712/4712035.png">
 
     <link rel="stylesheet" href="style.css">
-    <style>
-        .phone-group { display: flex; gap: 5px; margin-bottom: 10px; }
-        .phone-group select { width: 30%; padding: 10px; border-radius: 5px; }
-        .phone-group input { width: 70%; margin-bottom: 0; }
-        .toggle-text span { color: #00a884; cursor: pointer; font-weight: bold; }
-        .file-label { display: block; font-size: 12px; color: #666; margin-bottom: 5px; text-align: left; }
-    </style>
 </head>
-<body>
-    <div class="container">
+<body class="auth-page"> <div class="container">
         <div id="login-section">
             <h2>Bienvenido a ChatWeb</h2>
             <input type="email" id="log_cor" placeholder="Correo Electrónico" required>
@@ -36,22 +28,20 @@
             <input type="text" id="reg_apa" placeholder="Apellido Paterno" required>
             <input type="text" id="reg_ama" placeholder="Apellido Materno" required>
             
-            <label>Teléfono:</label>
-            <div class="phone-group">
-                <select id="country_code">
+            <label style="display:block; text-align:left; font-size:12px; margin-bottom:5px; color:var(--gray);">Teléfono:</label>
+            <div style="display:flex; gap:5px; margin-bottom:15px;">
+                <select id="country_code" style="width:30%; padding:10px; border-radius:8px; border:1px solid #e1e1e1;">
                     <option value="52">🇲🇽 +52</option>
                     <option value="1">🇺🇸 +1</option>
                     <option value="34">🇪🇸 +34</option>
-                    <option value="54">🇦🇷 +54</option>
-                    <option value="57">🇨🇴 +57</option>
                 </select>
-                <input type="text" id="reg_tel" placeholder="Número (10 dígitos)" required>
+                <input type="text" id="reg_tel" placeholder="Número (10 dígitos)" style="margin-bottom:0; width:70%;" required>
             </div>
 
             <input type="email" id="reg_cor" placeholder="Correo Electrónico" required>
             
-            <label class="file-label">Foto de perfil (opcional):</label>
-            <input type="file" id="reg_foto" accept="image/*" style="margin-bottom:15px; font-size:12px;">
+            <label class="file-label" style="display:block; font-size:12px; color:var(--gray); margin-bottom:5px; text-align:left;">Foto de perfil (opcional):</label>
+            <input type="file" id="reg_foto" accept="image/*" style="margin-bottom:15px; font-size:12px; border:none; padding:0;">
 
             <button id="btn-registro" onclick="registro()">Registrarme</button>
             <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()">Inicia sesión</span></p>
@@ -134,7 +124,7 @@
                 const result = await res.json();
 
                 if (result.status === 'success') {
-                    alert(`¡EXITO!\nTu cuenta ha sido creada.\nContraseña temporal: ${result.temp_pass}`);
+                    alert(`¡EXITO!\nCuenta creada.\nContraseña temporal: ${result.temp_pass}`);
                     
                     const msg = `Hola ${nombre}, mi clave de ChatWeb es: ${result.temp_pass}`;
                     const url = `https://wa.me/${cod + num}?text=${encodeURIComponent(msg)}`;
