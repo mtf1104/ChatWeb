@@ -1,90 +1,132 @@
 <?php
+/**
+ * ChatWeb - Controlador Principal
+ * Versión Unificada: MIDEL + TELLEZ (UBAM 2026)
+ */
+
+// 1. Configuraciones de sesión para entornos HTTPS (Render)
+ini_set('session.cookie_samesite', 'None');
+ini_set('session.cookie_secure', 'True');
+session_start();
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Esto carga la librería PHPMailer que debe estar en tu carpeta 'vendor'
 require 'vendor/autoload.php';
 
-// --- 1. CONFIGURACIÓN DE CONEXIÓN (TiDB Cloud) ---
-$host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
-$port = 4000;
-$user = 'MPefCA2vQ18cTr4.root';
-$pass = 'P6IKI4BtZ5q5OSGg';
-$db_name = 'chatweb';
+// --- CONFIGURACIÓN DE BASE DE DATOS (TiDB Cloud) ---
+$db_config = [
+    'host' => 'gateway01.us-east-1.prod.aws.tidbcloud.com',
+    'port' => 4000,
+    'user' => 'MPefCA2vQ18cTr4.root',
+    'pass' => 'P6IKI4BtZ5q5OSGg',
+    'name' => 'chatweb'
+];
 
 $conn = mysqli_init();
-// TiDB requiere SSL activado para conectar
 mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL); 
-$success = mysqli_real_connect($conn, $host, $user, $pass, $db_name, $port, NULL, MYSQLI_CLIENT_SSL);
+$db_status = mysqli_real_connect(
+    $conn, 
+    $db_config['host'], 
+    $db_config['user'], 
+    $db_config['pass'], 
+    $db_config['name'], 
+    $db_config['port'], 
+    NULL, 
+    MYSQLI_CLIENT_SSL
+);
 
-if (!$success) {
+if (!$db_status) {
     header('Content-Type: application/json');
-    die(json_encode(["status" => "error", "message" => "Fallo al conectar a la base de datos"]));
+    die(json_encode(["status" => "error", "message" => "Fallo de conexión a infraestructura de datos"]));
 }
 
-// --- 2. CAPTURA DE DATOS ---
 $action = $_GET['action'] ?? '';
-$data = json_decode(file_get_contents("php://input"), true);
 
-header('Content-Type: application/json');
+// --- RUTA: MANIFEST (PWA) ---
+if ($action === 'manifest') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        "name" => "ChatWeb Sala Privada",
+        "short_name" => "ChatWeb",
+        "start_url" => "index.php",
+        "display" => "standalone",
+        "background_color" => "#ffffff",
+        "theme_color" => "#00a884",
+        "icons" => [
+            ["src" => "https://cdn-icons-png.flaticon.com/512/4712/4712035.png", "sizes" => "192x192", "type" => "image/png"],
+            ["src" => "https://cdn-icons-png.flaticon.com/512/4712/4712035.png", "sizes" => "512x512", "type" => "image/png"]
+        ]
+    ]);
+    exit;
+}
 
 // --- RUTA: REGISTRO ---
 if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre = $data['nombre'] ?? '';
-    $ap_paterno = $data['ap_paterno'] ?? '';
-    $ap_materno = $data['ap_materno'] ?? '';
-    $telefono = $data['telefono'] ?? ''; 
-    $correo = $data['correo'] ?? '';
+    header('Content-Type: application/json');
 
-    // Verificar si el correo ya existe en la tabla usuarios
+    // Captura datos de FormData o JSON
+    $json_input = json_decode(file_get_contents("php://input"), true);
+    $nombre     = trim($_POST['nombre']     ?? ($json_input['nombre']     ?? ''));
+    $ap_paterno = trim($_POST['ap_paterno'] ?? ($json_input['ap_paterno'] ?? ''));
+    $ap_materno = trim($_POST['ap_materno'] ?? ($json_input['ap_materno'] ?? ''));
+    $telefono   = trim($_POST['telefono']   ?? ($json_input['telefono']   ?? '')); 
+    $correo     = trim($_POST['correo']     ?? ($json_input['correo']     ?? ''));
+
+    if (empty($nombre) || empty($correo)) {
+        die(json_encode(["status" => "error", "message" => "Campos obligatorios faltantes"]));
+    }
+
+    // Verificar si ya existe
     $stmt_check = $conn->prepare("SELECT id_usuario FROM usuarios WHERE correo = ?");
     $stmt_check->bind_param("s", $correo);
     $stmt_check->execute();
     if ($stmt_check->get_result()->num_rows > 0) {
-        echo json_encode(["status" => "error", "message" => "El correo ya está registrado."]);
-        exit;
+        die(json_encode(["status" => "error", "message" => "El correo ya está registrado."]));
     }
 
-    // Generar contraseña temporal de 8 caracteres
+    // Manejo de Foto de Perfil
+    $foto_perfil = 'default_avatar.png'; 
+    if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
+        if (!is_dir('uploads')) mkdir('uploads', 0777, true);
+        $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
+        $nombre_foto = "perfil_" . md5(uniqid()) . "." . $ext;
+        if (move_uploaded_file($_FILES['foto_perfil']['tmp_name'], "uploads/" . $nombre_foto)) {
+            $foto_perfil = $nombre_foto;
+        }
+    }
+
+    // Seguridad
     $tempPassword = substr(md5(uniqid(mt_rand(), true)), 0, 8);
     $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
-    // Insertar los datos en la base de datos
-    $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash) VALUES (?, ?, ?, ?, ?, ?)";
+    $sql = "INSERT INTO usuarios (nombre, apellido_paterno, apellido_materno, telefono, correo, password_hash, foto_perfil) VALUES (?, ?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash);
+    $stmt->bind_param("sssssss", $nombre, $ap_paterno, $ap_materno, $telefono, $correo, $hash, $foto_perfil);
 
     if ($stmt->execute()) {
         $mail_ok = false;
         $mail = new PHPMailer(true);
         try {
-            // Configuración del servidor de correo (Gmail)
+            // Configuración Gmail (Tu configuración original)
             $mail->isSMTP();
             $mail->Host       = 'smtp.gmail.com';
             $mail->SMTPAuth   = true;
             $mail->Username   = 'chatweb545@gmail.com';
-            $mail->Password   = 'jwdscahepzivuyvd'; // Tu contraseña de aplicación de 16 letras
+            $mail->Password   = 'jwdscahepzivuyvd'; 
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
+            $mail->CharSet    = 'UTF-8';
 
-            // Ajustes para asegurar que funcione en servidores externos como Render
             $mail->SMTPOptions = array(
-                'ssl' => array(
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                    'allow_self_signed' => true
-                )
+                'ssl' => array('verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true)
             );
 
-            // Remitente y Destinatario
             $mail->setFrom('chatweb545@gmail.com', 'Sistema ChatWeb');
             $mail->addAddress($correo);
-            
-            // Contenido del Correo
             $mail->isHTML(true);
-            $mail->CharSet = 'UTF-8';
             $mail->Subject = 'Registro Exitoso - ChatWeb';
-            $mail->Body    = "Hola <b>$nombre</b>, bienvenido al proyecto. Tu clave de acceso es: <b>$tempPassword</b>";
+            $mail->Body    = "Hola <b>$nombre</b>, bienvenido. Tu clave de acceso es: <b>$tempPassword</b>";
 
             $mail->send();
             $mail_ok = true;
@@ -94,38 +136,64 @@ if ($action === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         echo json_encode([
             "status" => "success", 
-            "temp_pass" => $tempPassword,
-            "message" => "Registro guardado correctamente.",
-            "mail_ok" => $mail_ok
+            "temp_pass" => $tempPassword, 
+            "mail_ok" => $mail_ok,
+            "message" => "Usuario registrado con éxito"
         ]);
     } else {
-        echo json_encode(["status" => "error", "message" => "Error al insertar en la base de datos."]);
+        echo json_encode(["status" => "error", "message" => "Error al guardar en base de datos"]);
     }
+    exit;
 }
 
 // --- RUTA: LOGIN ---
 if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $data = json_decode(file_get_contents("php://input"), true);
     $correo = $data['correo'] ?? '';
     $password = $data['password'] ?? '';
 
-    $stmt = $conn->prepare("SELECT nombre, password_hash FROM usuarios WHERE correo = ?");
+    $stmt = $conn->prepare("SELECT id_usuario, nombre, password_hash FROM usuarios WHERE correo = ?");
     $stmt->bind_param("s", $correo);
     $stmt->execute();
-    $result = $stmt->get_result();
+    $user = $stmt->get_result()->fetch_assoc();
 
-    if ($row = $result->fetch_assoc()) {
-        // Verificar si la contraseña coincide con el Hash de la DB
-        if (password_verify($password, $row['password_hash'])) {
-            echo json_encode([
-                "status" => "success", 
-                "user" => ["nombre" => $row['nombre']], 
-                "redirect" => "chat.html"
-            ]);
-        } else {
-            echo json_encode(["status" => "error", "message" => "Contraseña incorrecta."]);
+    if ($user && password_verify($password, $user['password_hash'])) {
+        $_SESSION['id_usuario'] = $user['id_usuario'];
+        $_SESSION['nombre'] = $user['nombre'];
+        session_write_close();
+        echo json_encode(["status" => "success", "redirect" => "chat.php", "user" => ["nombre" => $user['nombre']]]);
+    } else {
+        http_response_code(401);
+        echo json_encode(["status" => "error", "message" => "Credenciales inválidas"]);
+    }
+    exit;
+}
+
+// --- RUTA: ACTUALIZAR PERFIL ---
+if ($action === 'actualizar_perfil' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['id_usuario'])) exit(json_encode(["status" => "error", "message" => "Sesión expirada"]));
+
+    $id = (int)$_SESSION['id_usuario'];
+    $nuevo_nombre = trim($_POST['nombre'] ?? $_SESSION['nombre']);
+
+    if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === 0) {
+        $ext = pathinfo($_FILES['foto_perfil']['name'], PATHINFO_EXTENSION);
+        $nombre_foto = "perfil_" . md5(uniqid()) . "." . $ext;
+        if (move_uploaded_file($_FILES['foto_perfil']['tmp_name'], "uploads/" . $nombre_foto)) {
+            $stmt = $conn->prepare("UPDATE usuarios SET nombre = ?, foto_perfil = ? WHERE id_usuario = ?");
+            $stmt->bind_param("ssi", $nuevo_nombre, $nombre_foto, $id);
         }
     } else {
-        echo json_encode(["status" => "error", "message" => "Usuario no encontrado."]);
+        $stmt = $conn->prepare("UPDATE usuarios SET nombre = ? WHERE id_usuario = ?");
+        $stmt->bind_param("si", $nuevo_nombre, $id);
     }
+
+    if ($stmt->execute()) {
+        $_SESSION['nombre'] = $nuevo_nombre;
+        session_write_close();
+        echo json_encode(["status" => "success"]);
+    }
+    exit;
 }
-?>

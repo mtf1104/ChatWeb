@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatWeb - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body style="display: block; margin: 0; background-color: #f0f2f5;">
+    <div class="chat-main-container" style="display: flex; height: 100vh; width: 100vw; background: white; overflow: hidden;">
+        
+        <aside class="sidebar" style="width: 350px; border-right: 1px solid #ddd; display: flex; flex-direction: column;">
+            <div class="sidebar-header" style="padding: 20px; background: #00a884; color: white;">
+                <h3 style="margin: 0;">Contactos</h3>
+            </div>
+            <div id="user-list" style="flex-grow: 1; overflow-y: auto;">
+                </div>
+            <button onclick="location.href='logout.php'" style="padding: 15px; background: #d9534f; color: white; border: none; cursor: pointer; font-weight: bold;">
+                Cerrar Sesión
+            </button>
+        </aside>
+
+        <main class="chat-window" style="flex-grow: 1; display: flex; flex-direction: column; background: #efe7dd;">
+            <div id="chat-header" style="padding: 15px; background: #f0f2f5; font-weight: bold; border-bottom: 1px solid #ddd; color: #3b4a54;">
+                Selecciona un contacto para iniciar
+            </div>
+
+            <div id="messages-box" style="flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+                </div>
+
+            <form id="form-envio" onsubmit="enviarMensaje(event)" style="display: none; padding: 15px; background: #f0f2f5; border-top: 1px solid #ddd;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="msg-input" placeholder="Escribe un mensaje..." autocomplete="off"
+                           style="flex-grow: 1; padding: 12px; border-radius: 20px; border: 1px solid #ccc; outline: none;">
+                    <button type="submit" style="padding: 10px 20px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold;">
+                        Enviar
+                    </button>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script>
+        let receptorActual = null;
+        let cronometro = null;
+
+        // 1. Cargar usuarios desde obtener_usuarios.php
+        async function cargarUsuarios() {
+            try {
+                const res = await fetch('obtener_usuarios.php');
+                const usuarios = await res.json();
+                const list = document.getElementById('user-list');
+                list.innerHTML = ""; // Limpiar lista
+                
+                usuarios.forEach(user => {
+                    const div = document.createElement('div');
+                    div.className = 'user-item'; // Clase definida en style.css
+                    div.style.padding = "15px";
+                    div.style.cursor = "pointer";
+                    div.style.borderBottom = "1px solid #eee";
+                    div.innerHTML = `<strong>${user.nombre}</strong><br><small style="color: gray;">${user.correo}</small>`;
+                    
+                    div.onclick = () => abrirChat(user.id_usuario, user.nombre, div);
+                    list.appendChild(div);
+                });
+            } catch (error) {
+                console.error("Error cargando usuarios:", error);
+            }
+        }
+
+        // 2. Seleccionar un contacto
+        function abrirChat(id, nombre, elemento) {
+            receptorActual = id;
+            document.getElementById('chat-header').innerText = "Chat con: " + nombre;
+            document.getElementById('form-envio').style.display = 'block';
+            
+            // Resaltar usuario seleccionado
+            document.querySelectorAll('.user-item').forEach(i => i.style.background = 'white');
+            elemento.style.background = '#e7f5f2';
+
+            refrescarMensajes();
+
+            // Auto-refresco cada 2 segundos
+            if(cronometro) clearInterval(cronometro);
+            cronometro = setInterval(refrescarMensajes, 2000);
+        }
+
+        // 3. Obtener mensajes desde mensajes.php
+        async function refrescarMensajes() {
+            if(!receptorActual) return;
+            try {
+                const res = await fetch('mensajes.php?action=leer&con=' + receptorActual);
+                const html = await res.text();
+                const box = document.getElementById('messages-box');
+                box.innerHTML = html;
+                box.scrollTop = box.scrollHeight;
+            } catch (error) {
+                console.error("Error al cargar mensajes:", error);
+            }
+        }
+
+        // 4. Enviar mensaje a mensajes.php
+        async function enviarMensaje(e) {
+            e.preventDefault();
+            const input = document.getElementById('msg-input');
+            const texto = input.value.trim();
+            if(!texto || !receptorActual) return;
+
+            try {
+                await fetch('mensajes.php?action=enviar', {
+                    method: 'POST',
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        receptor_id: receptorActual,
+                        mensaje: texto
+                    })
+                });
+                input.value = '';
+                refrescarMensajes();
+            } catch (error) {
+                alert("Error al enviar el mensaje.");
+            }
+        }
+
+        window.onload = cargarUsuarios;
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 # Dependencias de PHP
-/vendor/
+# /vendor/   ← comenta o elimina esta línea
 
 # Archivos de configuración del sistema
 .DS_Store
