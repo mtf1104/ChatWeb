@@ -2,160 +2,265 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ChatWeb - Acceso Escolar</title>
-    
-    <link rel="manifest" href="index.php?action=manifest">
-    <meta name="theme-color" content="#00a884">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4712/4712035.png">
-
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatWeb - Acceso</title>
     <style>
-        .phone-group { display: flex; gap: 5px; margin-bottom: 10px; }
-        .phone-group select { width: 35%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
-        .phone-group input { width: 65%; margin-bottom: 0; }
-        .status-msg { font-size: 0.9em; margin-top: 10px; color: #555; text-align: center; }
-        .file-label { display: block; font-size: 12px; color: #666; margin-bottom: 5px; text-align: left; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        
+        .login-box { border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: #fafafa; }
+        
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 5px; }
+        
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:hover { background-color: #0056b3; }
+        
+        .btn-biometric { background-color: #1a1a1a; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
+        .btn-biometric:hover { background-color: #000; }
+        
+        .btn-secondary { background-color: #ccc; color: #333; margin-top: 10px; }
+        
+        .toggle-text { margin-top: 15px; font-size: 14px; }
+        .toggle-text span { color: #007bff; cursor: pointer; font-weight: bold; }
+        .toggle-text span:hover { text-decoration: underline; }
+        .phone-group { display: flex; gap: 10px; }
+        .phone-group select { width: 35%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .phone-group input { width: 65%; margin: 0; }
+        hr { border: 0; height: 1px; background: #ddd; margin: 20px 0; }
+        
+        #sin-hardware { font-size: 12px; color: #888; display: none; margin-top: 10px; font-style: italic; }
     </style>
 </head>
-<body class="auth-page">
+<body>
     <div class="container">
+        
         <div id="login-section">
             <h2>Bienvenido a ChatWeb</h2>
-            <p>Ingresa con tu correo y clave temporal</p>
-            <input type="email" id="log_cor" placeholder="Correo Electrónico" required>
-            <input type="password" id="log_pass" placeholder="Contraseña" required>
-            <button id="btn-login" onclick="login()">Iniciar Sesión</button>
-            <p class="toggle-text">¿No tienes cuenta? <span onclick="toggleAuth()" style="color:blue; cursor:pointer;">Regístrate aquí</span></p>
+            
+            <div class="login-box" id="caja-biometrica">
+                <p style="margin-top:0; font-size: 14px; color: #666;">Acceso Rápido</p>
+                <input type="email" id="log_cor_bio" placeholder="Correo electrónico" required>
+                <button class="btn-biometric" onclick="loginBiometrico()">
+                    <span>📱 Huella / Face ID / Llave</span>
+                </button>
+                <p id="sin-hardware">Tu navegador no soporta Passkeys de seguridad.</p>
+            </div>
+
+            <div class="login-box">
+                <p style="margin-top:0; font-size: 14px; color: #666;">Acceso Tradicional</p>
+                <input type="email" id="log_cor" placeholder="Correo electrónico">
+                <input type="password" id="log_pass" placeholder="Contraseña">
+                <button class="btn-primary" onclick="login()">Iniciar Sesión</button>
+            </div>
+            
+            <p class="toggle-text">¿No tienes cuenta? <span onclick="toggleAuth()">Regístrate aquí</span></p>
         </div>
 
         <div id="register-section" style="display:none;">
             <h2>Crea tu cuenta</h2>
-            <input type="text" id="reg_nom" placeholder="Nombre" required>
+            <input type="text" id="reg_nom" placeholder="Nombre(s)" required>
             <input type="text" id="reg_apa" placeholder="Apellido Paterno" required>
-            <input type="text" id="reg_ama" placeholder="Apellido Materno" required>
+            <input type="text" id="reg_ama" placeholder="Apellido Materno">
             
-            <label class="file-label">Teléfono:</label>
             <div class="phone-group">
                 <select id="country_code">
                     <option value="52">🇲🇽 +52</option>
                     <option value="1">🇺🇸 +1</option>
                     <option value="34">🇪🇸 +34</option>
-                    <option value="54">🇦🇷 +54</option>
                 </select>
-                <input type="text" id="reg_tel" placeholder="Número (10 dígitos)" maxlength="10">
+                <input type="text" id="reg_tel" placeholder="Teléfono" required>
             </div>
-
-            <input type="email" id="reg_cor" placeholder="Correo Electrónico" required>
             
-            <label class="file-label">Foto de perfil (opcional):</label>
-            <input type="file" id="reg_foto" accept="image/*" style="margin-bottom:15px; font-size:12px; border:none; padding:0;">
-
-            <button id="btn-registro" onclick="registro()">Registrarme y recibir correo</button>
-            <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()" style="color:blue; cursor:pointer;">Inicia sesión</span></p>
-            <div id="reg-status" class="status-msg"></div>
+            <input type="email" id="reg_cor" placeholder="Correo electrónico" required>
+            <button class="btn-primary" onclick="registro()">Registrarme</button>
+            <p class="toggle-text">¿Ya tienes cuenta? <span onclick="toggleAuth()">Inicia sesión</span></p>
         </div>
+
+        <div id="biometric-prompt-section" style="display:none;">
+            <h2>¡Registro Exitoso! 🎉</h2>
+            <p>Te hemos enviado tu contraseña temporal por correo.</p>
+            <hr>
+            <p><strong>Configura tu acceso rápido</strong></p>
+            <p style="font-size: 13px; color: #555;">Vincula este dispositivo usando tu huella, rostro o llave de seguridad para no usar contraseñas la próxima vez.</p>
+            
+            <button class="btn-biometric" onclick="registrarBiometriaAhora()">🛡️ Activar Acceso Rápido</button>
+            <button class="btn-secondary" onclick="omitirBiometria()">No por ahora, ir al Chat</button>
+        </div>
+
     </div>
 
     <script>
-        // Registro del Service Worker para PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error', err));
-            });
-        }
+        // --- DETECCIÓN BÁSICA DE NAVEGADOR ---
+        window.onload = function() {
+            // Solo ocultamos los botones si el navegador es MUY viejo y no soporta WebAuthn en absoluto
+            if (!window.PublicKeyCredential) {
+                document.querySelector('.btn-biometric').style.display = 'none';
+                document.getElementById('sin-hardware').style.display = 'block';
+            }
+        };
 
         function toggleAuth() {
-            const login = document.getElementById('login-section');
-            const register = document.getElementById('register-section');
-            login.style.display = (login.style.display === 'none') ? 'block' : 'none';
-            register.style.display = (register.style.display === 'none') ? 'block' : 'none';
-        }
+            const loginSec = document.getElementById('login-section');
+            const regSec = document.getElementById('register-section');
+            const bioSec = document.getElementById('biometric-prompt-section');
 
-        async function login() {
-            const btn = document.getElementById('btn-login');
-            const correo = document.getElementById('log_cor').value;
-            const password = document.getElementById('log_pass').value;
-
-            if(!correo || !password) return alert("Por favor, llena todos los campos.");
-
-            btn.disabled = true;
-            btn.innerText = "Cargando...";
-
-            try {
-                const res = await fetch('index.php?action=login', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({correo, password})
-                });
-                
-                const result = await res.json();
-                if (result.status === 'success') {
-                    window.location.href = result.redirect; 
-                } else { 
-                    alert(result.message); 
-                }
-            } catch (e) { 
-                alert("Error de conexión con el servidor."); 
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Iniciar Sesión";
+            if (loginSec.style.display !== 'none') {
+                loginSec.style.display = 'none';
+                regSec.style.display = 'block';
+                bioSec.style.display = 'none';
+            } else {
+                loginSec.style.display = 'block';
+                regSec.style.display = 'none';
+                bioSec.style.display = 'none';
             }
         }
 
         async function registro() {
-            const btn = document.getElementById('btn-registro');
-            const status = document.getElementById('reg-status');
             const cod = document.getElementById('country_code').value;
             const num = document.getElementById('reg_tel').value.replace(/\D/g, '');
-            const nombre = document.getElementById('reg_nom').value;
-            const correo = document.getElementById('reg_cor').value;
-            const foto = document.getElementById('reg_foto').files[0];
+            const datos = {
+                nombre: document.getElementById('reg_nom').value,
+                ap_paterno: document.getElementById('reg_apa').value,
+                ap_materno: document.getElementById('reg_ama').value,
+                telefono: cod + num,
+                correo: document.getElementById('reg_cor').value
+            };
 
-            if(!num || !nombre || !correo) return alert("Faltan datos obligatorios.");
-
-            btn.disabled = true;
-            btn.innerText = "Procesando...";
-            status.innerText = "Enviando datos y correo de confirmación...";
-
-            const formData = new FormData();
-            formData.append('nombre', nombre);
-            formData.append('ap_paterno', document.getElementById('reg_apa').value);
-            formData.append('ap_materno', document.getElementById('reg_ama').value);
-            formData.append('telefono', cod + num);
-            formData.append('correo', correo);
-            if(foto) formData.append('foto_perfil', foto);
+            if(!datos.nombre || !datos.ap_paterno || !num || !datos.correo) return alert("Llena los campos obligatorios.");
 
             try {
-                const res = await fetch('index.php?action=registro', {
+                const res = await fetch('./index.php?action=registro', {
                     method: 'POST',
-                    body: formData 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(datos)
                 });
                 
-                const result = await res.json();
+                const rawText = await res.text();
+                let result;
+                try { result = JSON.parse(rawText); } 
+                catch (e) { return alert("Error en el servidor PHP:\n" + rawText.substring(0, 150)); }
 
                 if (result.status === 'success') {
-                    let mensajeFinal = `¡EXITO!\nCuenta creada.\nClave temporal: ${result.temp_pass}`;
-                    if (result.mail_ok) mensajeFinal += "\n\nSe envió un correo con tus datos.";
+                    alert(`Tu clave temporal es: ${result.temp_pass}`);
                     
-                    alert(mensajeFinal);
+                    // Si el navegador soporta WebAuthn, mostramos la opción de configurar
+                    if (window.PublicKeyCredential) {
+                        document.getElementById('register-section').style.display = 'none';
+                        document.getElementById('biometric-prompt-section').style.display = 'block';
+                    } else {
+                        window.location.href = "chat.html";
+                    }
 
-                    // Abrir WhatsApp para respaldo
-                    const msg = `Hola ${nombre}, mi clave de ChatWeb es: ${result.temp_pass}`;
-                    window.open(`https://wa.me/${cod + num}?text=${encodeURIComponent(msg)}`, '_blank');
+                } else { alert(result.message); }
+            } catch (e) { alert("Error de red."); }
+        }
 
-                    toggleAuth();
-                } else { 
-                    alert(result.message); 
-                } 
-            } catch (e) { 
-                alert("Error en el registro. Intenta de nuevo."); 
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Registrarme";
-                status.innerText = "";
+        // --- PROCESO BIOMÉTRICO / LLAVE DE SEGURIDAD ---
+        async function registrarBiometriaAhora() {
+            try {
+                const resChallenge = await fetch('./index.php?action=get_registration_challenge', { method: 'POST' });
+                const config = await resChallenge.json();
+                if (config.status === 'error') return alert(config.message);
+
+                const challengeArr = Uint8Array.from(atob(config.challenge), c => c.charCodeAt(0));
+                const userIdArr = Uint8Array.from(atob(config.user.id), c => c.charCodeAt(0));
+
+                const credencial = await navigator.credentials.create({ 
+                    publicKey: {
+                        challenge: challengeArr,
+                        rp: { name: "ChatWeb" },
+                        user: { id: userIdArr, name: config.user.name, displayName: config.user.displayName },
+                        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+                        
+                        // AL QUITAR "authenticatorAttachment: 'platform'", PERMITIMOS LLAVES USB, PIN DE WINDOWS Y CÓDIGOS QR
+                        authenticatorSelection: { 
+                            userVerification: "required" 
+                        },
+                        timeout: 60000
+                    }
+                });
+
+                const resGuardar = await fetch('./index.php?action=save_biometric', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id: credencial.id,
+                        rawId: btoa(String.fromCharCode.apply(null, new Uint8Array(credencial.rawId))),
+                        type: credencial.type
+                    })
+                });
+
+                await resGuardar.json();
+                alert("¡Acceso rápido configurado con éxito!");
+                window.location.href = "chat.html";
+
+            } catch (error) {
+                console.error(error);
+                alert("Proceso cancelado por el usuario o tiempo agotado.");
+                window.location.href = "chat.html";
+            }
+        }
+
+        function omitirBiometria() { window.location.href = "chat.html"; }
+
+        async function login() {
+            const correo = document.getElementById('log_cor').value;
+            const password = document.getElementById('log_pass').value;
+            if(!correo || !password) return alert("Ingresa correo y contraseña.");
+
+            try {
+                const res = await fetch('./index.php?action=login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({correo, password})
+                });
+                const result = await res.json();
+                if (result.status === 'success') window.location.href = result.redirect; 
+                else alert(result.message);
+            } catch(e) { alert("Fallo de conexión."); }
+        }
+
+        async function loginBiometrico() {
+            const correo = document.getElementById('log_cor_bio').value;
+            if (!correo) return alert("Ingresa tu correo en la sección de Acceso Rápido.");
+
+            try {
+                const resChallenge = await fetch('./index.php?action=get_biometric_challenge', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({correo})
+                });
+                const config = await resChallenge.json();
+                if(config.status === 'error') return alert(config.message);
+
+                const challengeArr = Uint8Array.from(atob(config.challenge), c => c.charCodeAt(0));
+                const allowCredentials = config.allowCredentials.map(cred => ({
+                    type: cred.type,
+                    id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0))
+                }));
+
+                const assertion = await navigator.credentials.get({ 
+                    publicKey: { 
+                        challenge: challengeArr, 
+                        allowCredentials: allowCredentials, 
+                        userVerification: "required",
+                        timeout: 60000 
+                    }
+                });
+
+                const resVerify = await fetch('./index.php?action=verify_biometric', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ correo, authData: { id: assertion.id, type: assertion.type } })
+                });
+                const verifyResult = await resVerify.json();
+                
+                if (verifyResult.status === 'success') window.location.href = verifyResult.redirect;
+                else alert("Fallo al validar identidad.");
+            } catch(e) { 
+                console.error(e);
+                alert("Autenticación cancelada."); 
             }
         }
     </script>
